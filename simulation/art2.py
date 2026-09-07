@@ -6,16 +6,19 @@ carries the sixty-tooth internal ring the two shoulder pinions run in; its
 elbow end carries the bearings the forearm turns on.
 
 The elbow's belt runs the length of this fork, from a pulley on the
-shoulder axis to the pulley on the elbow axis, over two sprung idlers. The
+shoulder axis to the pulley on the elbow axis, clear of the two sprung
+tensioners the arm carries for it. The
 driving pulley is carried by `Art1`, not by this arm, so the belt holds the
 elbow at a fixed angle in the machine frame while the shoulder swings:
 `elbow` here is the forearm's **absolute** angle, and what this node
 applies is its angle relative to the upper arm.
 """
 
+import math
+
 from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
 
-from simulation import fasteners, layout, parts, placing
+from simulation import fasteners, flexibles, layout, parts, placing
 from simulation.art3 import Art3
 from simulation.hardware import CATALOGUE
 
@@ -40,6 +43,13 @@ ELBOW_PIVOT_AXIS = (0.0, 1.0, 0.0)
 #: the model draws the belt from its pulleys instead. See
 #: `simulation.flexibles` and design.md, Findings.
 BELTS = ('GT2_Belt_Art3001',)
+
+#: The belt runs in this frame's own XY plane: its drive pulley is on the
+#: shoulder axis at the origin and the elbow pulley 160.0 along +Y. What
+#: is left is how far up the shoulder axis the plane sits, and the two
+#: pulleys leave only 3.65 mm of shared land for a 6 mm belt; the model
+#: centres it in what they share and records the shortfall.
+BELT_PLANE_Z = flexibles.ARM_BELT_PLANE
 
 PLACEMENT = {
     'Art2BodyA_Art2BodyA': 'art2_body_a',
@@ -82,6 +92,20 @@ PLACEMENT = {
     'Magnet012': 'magnet_12',
     '5x128mm001': 'elbow_axle',
 }
+
+
+def belt_travel(turn):
+    """How far the elbow belt runs for a turn of the elbow pulley, mm.
+
+    Positive is the sense of a positive turn about the elbow axis: the
+    belt is a rack wrapped on the pitch circle, so its travel is that
+    circle's arc and nothing else.
+    """
+    # Written as a plain multiplication rather than through
+    # `math.radians`, because under `solid build` the turn is a symbolic
+    # expression and the C library's radians() takes only floats.
+    return turn * (math.pi / 180.0) * flexibles.pitch_radius(
+        flexibles.ARM_DRIVEN_TEETH)
 
 
 class Art2(AssemblyNode):
@@ -142,6 +166,8 @@ class Art2(AssemblyNode):
     magnet_12 = CATALOGUE['Magnet']()
     elbow_axle = CATALOGUE['5x128mm']()
 
+    elbow_belt = flexibles.ElbowBelt()
+
     art3 = Art3()
 
     #: Every screw and nut the parts' own holes imply, derived
@@ -156,6 +182,9 @@ class Art2(AssemblyNode):
         # about this frame's X so that its own Y runs along the elbow axis.
         self.art3.rotate(90.0, [1.0, 0.0, 0.0])
         self.art3.translate([0.0, ELBOW_ALONG_ARM + 81.5, ELBOW_ACROSS_ARM])
+        # The belt is drawn in its own XY plane, which is this frame's, so
+        # it needs only to be lifted onto its pulleys' land.
+        self.elbow_belt.translate([0.0, 0.0, BELT_PLANE_Z])
 
     def simulate(self):
         shoulder = placing.bound(self.shoulder)
@@ -169,3 +198,9 @@ class Art2(AssemblyNode):
         # elbow is anchored below the shoulder rather than on this arm.
         placing.rotate_about(self.art3, elbow - shoulder,
                              ELBOW_PIVOT_AXIS, ELBOW_PIVOT)
+        # The belt does not slip: what it feeds past a point is the arc the
+        # pulley it wraps has turned through. The elbow pulley is the one
+        # fixed in this frame -- the drive pulley belongs to Art1 and swings
+        # with the shoulder -- so the arc is read off the elbow's own
+        # movement relative to the arm.
+        self.elbow_belt.travel = belt_travel(elbow - shoulder)

@@ -111,10 +111,14 @@ With `solid-node` installed:
 ```bash
 solid build                       # build once and publish the model
 solid develop                     # a live viewer that rebuilds on save
-solid test --faceted simulation/thor.py   # the contracts, on meshes
-solid test --exact simulation/thor.py     # the run a verdict is certified on
+solid test --exact simulation/thor.py     # the contracts
 solid snapshot -o thor.png --autocenter --viewall
 ```
+
+The contracts run on the **exact** kernel and only on it. Seven of Thor's
+printed parts tessellate to a mesh that is not closed at the default
+deflection — their solids are sound — and the faceted kernel refuses those
+meshes rather than answering, so `--faceted` cannot run this machine.
 
 ### What the sliders mean
 
@@ -137,6 +141,9 @@ own travel where the geometry bounds it and the full circle otherwise;
 they are presentation only and clamp nothing.
 
 The instructions are `Home`, `Ready`, `Reach`, `Pick`, `Place` and `Park`.
+A scenario contract triggers all six in order, at the rate each joint's own
+mechanism allows, and asks the machine on the way whether it has driven any
+part through another.
 
 ### Looking at it in pieces
 
@@ -176,15 +183,34 @@ were read, and none of them is fixed upstream.
   24.30 mm³ at every angle: the flange is 1.2 mm larger in radius than the
   teeth, and the ring at the foot of the column's gear is not relieved for
   it.
-- **The elbow belt's two pulleys are not in the same plane.** The drive
-  pulley's belt land is centred 7.85 mm away from the elbow pulley's along
-  the shoulder axis, which no 6 mm belt can bridge.
+- **The arm's two sprung tensioners do not reach its belt.** The taut run
+  between the shoulder and elbow pulleys passes 5.41 mm clear of their
+  rims, so they are drawn retracted and the belt is a plain two-pulley
+  loop of 462.98 mm — 231.5 teeth, which is what the tensioners are there
+  to take up.
+- **The arm's two belt pulleys share only 3.65 mm of land for a 6 mm
+  belt.** Their running surfaces overlap between 18.000 and 21.651 along
+  the shoulder axis and nowhere else. The forearm's pulleys share their
+  whole 7.5 mm land, which is how you know this one is the arm's.
 - **The forearm belts are named for 208 mm and their pulleys need
-  221.5 mm.** The design's own belt solid measures about 220, so it is the
+  223.5 mm.** The design's own belt solid measures about 220, so it is the
   name that is wrong — but a builder buying by the name gets a belt that
   will not close.
 - **All three belt solids are placed where their pulleys are not.** Both
-  forearm belts lie flat in a plane perpendicular to their pulleys' axes.
+  forearm belts lie flat in a plane perpendicular to their pulleys' axes,
+  and the arm's belt clears both of its own pulleys.
+- **`Art1Top` is one solid that tessellates into five bodies** — the part,
+  three zero-volume patches and a detached lug — which is why every
+  question here is asked of the solids.
+- **The wrist's belt pulleys are 4 mm-bore pulleys on a 5 mm shaft.** The
+  design's own `GT2x40PulleyM4` is bored 2.000 in radius and its own
+  `Shaft_5x102mm` is 2.500, so half a millimetre of bore wall is solid
+  shaft over the pulley's whole 17 mm.
+
+The interference contract that finds these is **red on purpose**: 272
+pairs of solids share space at the home pose and thirteen are recorded, so
+the model is still telling the truth about how much it has explained.
+`docs/measurements.md` breaks the rest down.
 - **`GripperBot` is sunk 3248.9 mm³ into `Art56GearPlate`.** The gripper
   base's mounting boss occupies the same space as the plate it bolts to;
   neither part rebates for the other.
@@ -202,7 +228,7 @@ were read, and none of them is fixed upstream.
   exported but placed in no assembly.**
 - **The design models no fastener.** Every screw and nut in the model is
   derived from the parts' own Ø3.4 holes, Ø5.9 counterbores and 5.80
-  across-flats pockets: 216 fasteners, 111 of them with nuts, and 71
+  across-flats pockets: 181 fasteners, 77 of them with nuts, and 85
   further hole stacks the geometry cannot classify.
 
 

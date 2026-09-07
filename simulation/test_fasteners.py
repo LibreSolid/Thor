@@ -64,8 +64,8 @@ class FastenerDriftTest(unittest.TestCase):
         # the other is a documentation drift, not a silent improvement.
         total = sum(len(v) for v in fasteners.STACKS.values())
         nuts = sum(len(fasteners.nuts_of(g)) for g in fasteners.STACKS)
-        self.assertEqual(total, 216)
-        self.assertEqual(nuts, 111)
+        self.assertEqual(total, 181)
+        self.assertEqual(nuts, 77)
 
 
 if __name__ == '__main__':

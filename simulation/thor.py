@@ -105,8 +105,10 @@ class Thor(AssemblyNode):
             {'art1': 90.0, 'art2': 60.0, 'art3': -20.0, 'art4': 0.0,
              'art5': -40.0, 'art6': 90.0, 'grip': OPEN},
             duration=5.0),
+        # Folded to the elbow's own limit, not past it: -160 was outside
+        # ELBOW_TRAVEL, which is the sort of thing a range is for.
         'Park': Instruction(
-            {'art1': 0.0, 'art2': 80.0, 'art3': -160.0, 'art4': 0.0,
+            {'art1': 0.0, 'art2': 80.0, 'art3': -135.0, 'art4': 0.0,
              'art5': 80.0, 'art6': 0.0, 'grip': 0.0},
             duration=5.0),
     }

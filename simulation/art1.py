@@ -29,8 +29,12 @@ SHOULDER_PINION_TEETH = 10
 SHOULDER_RATIO = SHOULDER_RING_TEETH / SHOULDER_PINION_TEETH
 
 #: Teeth on the elbow belt's driving pulley and on the pulley it drives.
+#: The driven count is read off the elbow pulley's own 37.000 mm tip
+#: radius rather than counted on a section, which catches only a sixth of
+#: that pulley's circle and answers 126; see docs/measurements.md and
+#: `simulation.art3.ELBOW_PULLEY_TEETH`.
 ELBOW_DRIVE_TEETH = 20
-ELBOW_PULLEY_TEETH = 126
+ELBOW_PULLEY_TEETH = 117
 
 #: How far the elbow's driving pulley turns for one degree of elbow travel.
 ELBOW_RATIO = ELBOW_PULLEY_TEETH / ELBOW_DRIVE_TEETH

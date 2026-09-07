@@ -1,9 +1,16 @@
 """The toothed belts, as shapes that follow their pulleys.
 
 Thor has three GT2 belt runs: one the length of the upper arm, from a
-pulley on the shoulder axis to the 117-tooth pulley on the elbow axis over
-two sprung idlers, and two in the forearm, each from a 20-tooth motor
-pulley to a 40-tooth pulley on the wrist shaft.
+pulley on the shoulder axis to the 117-tooth pulley on the elbow axis, and
+two in the forearm, each from a 20-tooth motor pulley to a 40-tooth pulley
+on the wrist shaft.
+
+The upper arm carries two sprung tensioner pulleys, and the belt does not
+touch them: at the positions the assembly solves them to they stand
+5.41 mm clear of the run (`ARM_IDLER_CLEARANCE`), which is what a
+tensioner drawn retracted looks like. Drawing the belt over them anyway
+produced a path 56 mm shorter than the pulleys admit, which is the
+arithmetic telling you the same thing.
 
 They are `molejo` shapes rather than solids, because a belt's shape is a
 function of machine state: the teeth circulate as the joint turns. Each
@@ -27,7 +34,7 @@ import math
 
 import molejo
 
-from solid_node.node import MolejoNode, RotationalPort
+from solid_node.node import MolejoNode, TranslationalPort
 
 from simulation import materials
 
@@ -73,9 +80,15 @@ def tangent(first, second):
 def loop(circles):
     """The taut belt's straight runs and wrap angles around each circle.
 
-    Returns (total length, [(circle index, wrap angle in degrees)]). The
-    wrap angles sum to a full turn, which is what makes the result a
-    closed belt rather than a set of unconnected tangents.
+    Returns (total length, [(circle index, wrap angle in degrees)]).
+
+    Which of a circle's two arcs the belt takes is not a choice: the belt
+    leaves along its straight run, so the sense it turns in is the sense
+    that run leaves in, and the arc is measured that way. Reading the
+    arrival and departure angles and taking the anticlockwise difference
+    is what gets this wrong -- the two arcs of a two-pulley loop then land
+    on the wrong pulleys, which is right to within a couple of degrees for
+    equal pulleys and wrong by 2 mm of belt for a two-to-one pair.
     """
     count = len(circles)
     runs = [tangent(circles[i], circles[(i + 1) % count])
@@ -89,11 +102,23 @@ def loop(circles):
         start = math.atan2(arrival[1] - centre[1], arrival[0] - centre[0])
         end = math.atan2(departure[1] - centre[1], departure[0] - centre[0])
         turn = (end - start) % (2 * math.pi)
-        if circle.get('turn'):
+        if _departs_clockwise(circle, runs[index]):
             turn = 2 * math.pi - turn
         length += turn * circle['radius']
         wraps.append((index, math.degrees(turn)))
     return length, wraps
+
+
+def _departs_clockwise(circle, run):
+    """Whether the belt is running clockwise where it leaves this circle.
+
+    The radius to the departure point and the direction the belt leaves in
+    are perpendicular; which way the belt is going round is the sign of
+    their cross product, and nothing else.
+    """
+    (px, py), (qx, qy) = run
+    cx, cy = circle['center']
+    return (px - cx) * (qy - py) - (py - cy) * (qx - px) < 0.0
 
 
 def teeth_for(circles):
@@ -126,7 +151,7 @@ class ToothedBelt(MolejoNode):
     path_samples = 12
     profile_samples = 4
 
-    travel = RotationalPort(unit='mm')
+    travel = TranslationalPort(unit='mm')
 
     def render(self):
         return molejo.Shape(
@@ -142,31 +167,56 @@ class ToothedBelt(MolejoNode):
 
 
 #: The arm belt's pulleys, in the upper arm's own frame. The shoulder's
-#: driving pulley sits on the shoulder axis, which is that frame's origin;
-#: the elbow pulley sits 160.0 along it; the two idlers press on the
-#: outside of each straight run, so the belt is bent backwards over them.
+#: driving pulley sits on the shoulder axis, which is that frame's origin,
+#: and the elbow pulley 160.0 along it.
 ARM_DRIVE_TEETH = 20
 ARM_DRIVEN_TEETH = 117
+ARM_CENTRES = 160.0
+
+#: The tensioner pulleys, from their own part and the assembly's own
+#: placement of them: the running surface between the flanges is r = 6.0,
+#: and the two sit at (+/-14.5, 99.85) in the upper arm's frame.
 ARM_IDLER_RADIUS = 6.0
 ARM_IDLER_X = 14.5
 ARM_IDLER_Y = 99.85
-ARM_CENTRES = 160.0
 
 
 class ElbowBelt(ToothedBelt):
-    """The belt that carries the elbow, up the length of the upper arm."""
+    """The belt that carries the elbow, up the length of the upper arm.
+
+    Two pulleys and nothing else. The arm's two tensioners are drawn where
+    they do not reach the belt, so putting them in the path would be
+    drawing a belt the machine does not have; `idler_clearance` measures
+    the gap and a contract holds it.
+    """
 
     width = ARM_BELT_WIDTH
     circles = (
         {'center': (0.0, 0.0), 'radius': pitch_radius(ARM_DRIVE_TEETH)},
-        {'center': (ARM_IDLER_X, ARM_IDLER_Y), 'radius': ARM_IDLER_RADIUS},
         {'center': (0.0, ARM_CENTRES),
          'radius': pitch_radius(ARM_DRIVEN_TEETH)},
-        {'center': (-ARM_IDLER_X, ARM_IDLER_Y), 'radius': ARM_IDLER_RADIUS},
     )
     #: Teeth on the loop, counted from the path the circles describe
     #: rather than from the name of any part.
     teeth = 0
+
+
+def idler_clearance():
+    """How far a tensioner pulley's rim stands off the belt run, mm.
+
+    Measured on the +x run, which the assembly mirrors to the other side.
+    """
+    (ax, ay), (bx, by) = tangent(
+        {'center': (0.0, 0.0), 'radius': pitch_radius(ARM_DRIVE_TEETH)},
+        {'center': (0.0, ARM_CENTRES),
+         'radius': pitch_radius(ARM_DRIVEN_TEETH)})
+    # The tangent solver hands back the -x run; the arm is symmetric about
+    # x = 0, so the +x run is its mirror.
+    ax, bx = -ax, -bx
+    dx, dy = bx - ax, by - ay
+    span = math.hypot(dx, dy)
+    distance = abs(dx * (ARM_IDLER_Y - ay) - dy * (ARM_IDLER_X - ax)) / span
+    return distance - ARM_IDLER_RADIUS
 
 
 #: The wrist belts' pulleys, in the forearm's own frame: a 20-tooth motor
@@ -196,19 +246,51 @@ class WristBelt(ToothedBelt):
     teeth = 0
 
 
-#: Where the arm belt's two pulleys put their belt lands, along the
-#: shoulder axis in the upper arm's own frame. They are 7.9 mm apart: the
-#: drive pulley's land is centred 17.15 and the elbow pulley's 25.0, and no
-#: belt can run on both. The model draws the belt in the drive pulley's
-#: plane and says so; see design.md, Findings.
-ARM_DRIVE_BAND = 17.15
-ARM_DRIVEN_BAND = 25.0
-ARM_BAND_OFFSET = ARM_DRIVEN_BAND - ARM_DRIVE_BAND
+def land_overlap(first, second):
+    """The height two belt lands share, as (low, high); empty is (x, x)."""
+    low = max(first[0], second[0])
+    high = min(first[1], second[1])
+    return (low, max(low, high))
+
+
+def land_centre(first, second):
+    """The plane a belt on two lands must run in: the middle of both."""
+    low, high = land_overlap(first, second)
+    return (low + high) / 2.0
+
+
+#: Each belt land, measured off the pulleys' own toothed cylinders in the
+#: frame the belt runs in: the low and high end of the running surface
+#: between its flanges. See docs/measurements.md.
+#:
+#: In the upper arm these are along the shoulder axis, and they are the
+#: arm's real trouble: the drive pulley's land is 9.0 mm of height and the
+#: elbow pulley's 15.0, but they share only 3.65 mm, less than the 6 mm
+#: belt that has to run on both. The tensioners' land does not help -- it
+#: is the elbow pulley's height, not the drive pulley's. The model centres
+#: the belt in what the two do share and records the shortfall; see
+#: design.md, Findings.
+ARM_DRIVE_LAND = (12.650, 21.651)
+ARM_DRIVEN_LAND = (18.000, 33.000)
+ARM_IDLER_LAND = (18.000, 25.000)
+ARM_BELT_PLANE = land_centre(ARM_DRIVE_LAND, ARM_DRIVEN_LAND)
+ARM_SHARED_LAND = (land_overlap(ARM_DRIVE_LAND, ARM_DRIVEN_LAND)[1]
+                   - land_overlap(ARM_DRIVE_LAND, ARM_DRIVEN_LAND)[0])
+
+#: In the forearm, along the wrist axis, and here the design is right: the
+#: motor pulley's 9.0 mm land and the wrist pulley's 7.5 mm land share the
+#: whole 7.5, which carries the 6 mm belt with a millimetre to spare
+#: either side. Measured on the -y belt; the +y one is its mirror.
+WRIST_DRIVE_LAND = (-26.900, -17.900)
+WRIST_DRIVEN_LAND = (-26.500, -19.000)
+WRIST_BELT_PLANE = land_centre(WRIST_DRIVE_LAND, WRIST_DRIVEN_LAND)
+WRIST_SHARED_LAND = (land_overlap(WRIST_DRIVE_LAND, WRIST_DRIVEN_LAND)[1]
+                     - land_overlap(WRIST_DRIVE_LAND, WRIST_DRIVEN_LAND)[0])
 
 
 # The tooth counts are the loops' own, from the pulley centres and radii
 # above. A real belt has an integer count, so each is rounded, and
-# `simulation/test_flexibles.py` holds the rounding to under half a tooth.
+# `simulation/test_thor.py` holds each rounding to under half a tooth.
 ElbowBelt.teeth = teeth_for(ElbowBelt.circles)
 WristBelt.teeth = teeth_for(WristBelt.circles)
 

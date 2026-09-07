@@ -18,9 +18,11 @@ nominal 27.0, and the wrist's belt pulleys have forty teeth to the
 motors' twenty.
 """
 
+import math
+
 from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
 
-from simulation import fasteners, layout, parts, placing
+from simulation import fasteners, flexibles, layout, parts, placing
 from simulation.art56 import Art56
 from simulation.hardware import CATALOGUE
 
@@ -48,6 +50,19 @@ BELT_RATIO = WRIST_PULLEY_TEETH / MOTOR_PULLEY_TEETH
 #: draws each belt from the pulleys it runs on instead. See
 #: `simulation.flexibles` and design.md, Findings.
 BELTS = ('Belt_GT2-208mm001', 'Belt_GT2-208mm002')
+
+#: Where each belt's own plane stands in this frame. A belt is drawn in
+#: its own XY with the motor pulley on +X, so a quarter turn about X
+#: stands it up; the second belt is the same shape turned end for end
+#: about Z, because the assembly puts its motor pulley on -X. The motor
+#: pulley axis crosses this frame at x = +/-24.0, z = 33.6 and the wrist
+#: pulley on the fork's axis 77.9 above it, and the plane is the middle of
+#: the land the two pulleys share.
+BELT_PLANE_Y = -flexibles.WRIST_BELT_PLANE
+BELT_PLANES = (
+    ('wrist_belt_1', 0.0, (0.0, -BELT_PLANE_Y, 33.6)),
+    ('wrist_belt_2', 180.0, (0.0, BELT_PLANE_Y, 33.6)),
+)
 
 PLACEMENT = {
     'Art4TransmissionColumn_Art4TransmissionColumn':
@@ -85,6 +100,19 @@ MOTOR_DRIVES = {
 }
 
 
+def belt_travel(turn):
+    """How far a wrist belt runs for a turn of its wrist pulley, mm.
+
+    The belt is a rack wrapped on the forty-tooth pulley's pitch circle,
+    so what it feeds is that circle's arc.
+    """
+    # Written as a plain multiplication rather than through
+    # `math.radians`, because under `solid build` the turn is a symbolic
+    # expression and the C library's radians() takes only floats.
+    return turn * (math.pi / 180.0) * flexibles.pitch_radius(
+        flexibles.WRIST_DRIVEN_TEETH)
+
+
 class Art4(AssemblyNode):
     """The forearm and the wrist it carries."""
 
@@ -119,6 +147,9 @@ class Art4(AssemblyNode):
     micro_endstop = CATALOGUE['MicroEndstop']()
     m8_connector = CATALOGUE['M8Connector']()
 
+    wrist_belt_1 = flexibles.WristBelt()
+    wrist_belt_2 = flexibles.WristBelt()
+
     art56 = Art56()
 
     #: Every screw and nut the parts' own holes imply, derived
@@ -134,6 +165,12 @@ class Art4(AssemblyNode):
         # translation, as everywhere else in this model.
         self.art56.rotate(WRIST_TURN, [0.0, 0.0, 1.0])
         self.art56.translate([0.0, 0.0, WRIST_HEIGHT])
+        for attribute, turn, offset in BELT_PLANES:
+            belt = getattr(self, attribute)
+            belt.rotate(90.0, [1.0, 0.0, 0.0])
+            if turn:
+                belt.rotate(turn, [0.0, 0.0, 1.0])
+            belt.translate(list(offset))
 
     def pinion_turns(self, wrist, tool):
         """Each wrist pinion's absolute turn about the wrist axis.
@@ -169,3 +206,8 @@ class Art4(AssemblyNode):
                                            WRIST_AXIS)
             motor = getattr(self, PLACEMENT[motor_label])
             motor.spin = motor_sign * about_axis
+        # Each belt feeds the arc its own wrist pulley turns through --
+        # about the wrist axis, and in this frame, which is what makes it
+        # the pulley's turn relative to the belt's own plane.
+        self.wrist_belt_1.travel = belt_travel(left)
+        self.wrist_belt_2.travel = belt_travel(right)

@@ -364,11 +364,13 @@ class Fan(CadQueryNode):
                       .extrude(self.thickness)))
         hub = (cq.Workplane('XY').circle(self.hub_diameter / 2)
                .extrude(self.thickness * 0.7))
-        # Struts, not a bar across the whole aperture: a fan sits in a
-        # shroud cut for its frame, and anything wider than the frame
-        # fouls it.
+        # The strut reaches the frame it holds. Stopping it a half
+        # millimetre short of the bore, as it did, leaves the hub a second
+        # body floating in the middle of the fan -- which is what
+        # assertNoDisconnectedSolids is for. It never leaves the square
+        # frame's own envelope, so it cannot foul the shroud.
         strut = (cq.Workplane('XY')
-                 .box(self.aperture - 1.0, 2.0, 1.6,
+                 .box(self.side, 2.0, 1.6,
                       centered=(True, True, False))
                  .translate((0, 0, self.thickness * 0.35)))
         return frame.union(hub).union(strut)

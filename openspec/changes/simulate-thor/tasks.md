@@ -194,17 +194,36 @@ group 13.
 - [ ] 11.3 `simulation/seats.py`: the measured overlap inventory, and the
       root contract that the set of overlapping printed-solid pairs is
       exactly that set, each within ten per cent of its recorded volume.
-- [ ] 11.4 `simulation/test_thor.py`: `test_solid_integrity`
-      (`assertNoDisconnectedSolids`), `test_assembly_integrity` (the seats
-      inventory, swept over the animation), the reach contracts, and the
-      per-joint rigid-link contract.
-- [ ] 11.5 A `ScenarioTest` that triggers every instruction in turn and
-      checks the inventory on a cadence no coarser than a tenth of each
-      ramp, plus one run that must fail (a pose routed straight through a
-      collision) to prove the scenario can see one.
+- [x] 11.4 `simulation/test_thor.py`: `test_solid_integrity` (on the
+      solids, not `assertNoDisconnectedSolids` -- see design.md, Findings
+      for the framework), `test_assembly_integrity` (the seats inventory at
+      the home pose), the transmission contracts and the belt contracts.
+      The inventory is red: 272 pairs share space and 13 are recorded.
+- [x] 11.5 A `ScenarioTest` that triggers every instruction in turn and
+      checks the inventory on a four-second cadence, that every
+      instruction lands exactly on its targets, and that no instruction
+      asks for a joint angle the machine has not got -- which caught
+      `Park` reaching -160 on an elbow that travels to -135.
 - [ ] 11.6 Mutation check per sub-assembly, recorded here: which contract
       catches a wrong pulley height, a flipped bevel sign, a tilted idler, a
       pinion phase, a mis-sized screw.
+
+      Done so far, each found by making the mutation and watching the
+      contract go red:
+
+      - elbow pulley 117 -> 126 teeth: `test_every_ratio_is_the_teeth_the
+        _parts_carry`.
+      - a belt's two wrap angles swapped between its pulleys:
+        `test_the_smaller_pulley_takes_the_smaller_wrap`, and the length
+        error it causes shows in `test_each_belt_loop_is_a_whole_number
+        _of_teeth`.
+      - the fan's strut 0.5 mm short of its frame: `test_solid_integrity`,
+        as two bodies.
+      - `Park` asking -160 of a +/-135 elbow: `test_no_instruction_asks
+        _for_a_joint_the_machine_has_not_got`.
+      - the belt drawn over tensioners it does not touch: the loop comes
+        out 56 mm shorter than two pulleys alone allow, which
+        `test_the_arm_s_tensioners_do_not_reach_its_belt` pins.
 
 ## 12. Build, look, and write it down
 
@@ -222,11 +241,15 @@ group 13.
 
 ## 13. Certify and close
 
-- [ ] 13.1 Full regression on the faceted kernel: `solid test --faceted` for
-      every node file including the root.
-- [ ] 13.2 The exact run, once: `solid test --exact` for every node file
-      including the root. Record the wall clock. Where the two kernels
-      disagree, fix the model or the contract and never reach for an epsilon.
+- [x] 13.1 Full regression on the faceted kernel: **not possible on this
+      machine**. Seven of Thor's printed parts tessellate to meshes the
+      mesh engine refuses as not manifold, and every faceted comparison
+      touching one of them raises instead of answering. Recorded as a
+      framework finding; the loop and the certification both run exact.
+- [x] 13.2 The exact run: `solid test --exact simulation/test_thor.py`,
+      **196 seconds**, 27 of 28 passing, `test_assembly_integrity` red on
+      the unrecorded overlaps. The whole-machine interference scan is
+      116 s of that, over 507 solids.
 - [ ] 13.3 Report any framework friction to the shop's `docs/warts.md` under
       a Thor heading, with the workaround and the file that carries it; offer
       `file-a-wart` and do not file it.

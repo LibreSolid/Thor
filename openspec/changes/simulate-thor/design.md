@@ -322,7 +322,7 @@ pilot's decision.
    published files gets two identical fingers, not a handed pair.
 9. **The design models no fastener.** Every joint's screws and nuts are
    implied by holes and pockets and stated nowhere in the repository. The
-   model derives 216 of them, 111 with nuts, and leaves 71 further hole
+   model derives 181 of them, 77 with nuts, and leaves 85 further hole
    stacks unclassified because nothing in the geometry says whether they
    take a screw.
 10. **The base pinion has no interference-free phase.** It stands 2 mm
@@ -332,15 +332,23 @@ pilot's decision.
     The flange is 12.0 in radius against the teeth's 10.8, and the ring at
     the foot of the column's twenty-tooth gear is not relieved for it:
     24.2991 mm³ at every phase.
-12. **The elbow belt's two pulleys are not in the same plane.** The drive
-    pulley's belt land is centred 17.15 along the shoulder axis in the
-    upper arm's frame and the elbow pulley's 25.0 — 7.85 mm apart, which
-    no 6 mm belt can bridge. The model draws that belt in the drive
-    pulley's plane and records the offset.
+12. **The arm's two belt pulleys share only 3.65 mm of land for a 6 mm
+    belt.** Their running surfaces, along the shoulder axis in the upper
+    arm's frame, are 12.650–21.651 on the drive pulley and 18.000–33.000
+    on the elbow pulley. The model centres the belt at 19.825, in the
+    middle of what the two do share, and records the shortfall. The
+    forearm's pulleys, by contrast, share their whole 7.5 mm land, which
+    is what makes this a finding about the arm and not about the model.
 13. **The forearm belts are named for 208 mm and their pulleys need
-    221.5.** The design's own belt solid measures about 220 mm, so the
+    223.5.** The design's own belt solid measures about 220 mm, so the
     name is what is wrong; a builder buying by it gets a belt that cannot
     close.
+13a. **The arm's two sprung tensioners do not reach its belt.** They run
+    on Ø12 surfaces at (±14.5, 99.85) and the taut run passes 11.41 mm
+    from their centres — 5.41 mm clear of the rims. They are solved
+    retracted, so the belt is a two-pulley loop of 462.98 mm (231.49
+    teeth) and the tensioners are what take up the difference between that
+    and a belt made in whole teeth.
 14. **All three belt solids are placed where their pulleys are not.** Both
     forearm belts lie flat in a plane perpendicular to their pulleys' axes,
     and the arm's belt is placed clear of both of its pulleys.
@@ -358,6 +366,32 @@ pilot's decision.
 18. **`Art3Pulley` has 117 teeth**, not the 126 a Fourier count of its own
     section suggests: its 37.000 tip radius gives 117.04 through GT2's own
     geometry, and the section samples too little of the circle to count.
+19. **`Art1Top` is one solid that tessellates into five bodies**: the
+    part, three two-triangle patches of zero volume 5.0 × 23.4 in extent,
+    and a detached 3220.9 mm³ lug. Its exact geometry is a single solid of
+    530398.4 mm³. This is finding 17 seen from the other side, and it is
+    why solid connectivity is asked of the B-rep here rather than of the
+    mesh.
+
+### Findings for the framework
+
+Recorded in the shop's `docs/warts.md` under Thor, not fixed here:
+
+- `assertNoDisconnectedSolids` answers on the STL even when the node is
+  exact, so `Art1Top` fails as five bodies while its solid is one.
+- The faceted kernel cannot run this machine at all: seven of its parts
+  tessellate non-manifold and every faceted comparison touching one of
+  them raises rather than answering, which leaves an exact run — about an
+  hour for the whole-model interference scan — as the only kernel.
+- There is no public way to ask which pairs of an assembly interfere and
+  by how much: `assertNoSolidInterference` raises on the first pair. A
+  machine whose own design overlaps must reach for
+  `_placed_assembly_solids`, `_bounds_candidates` and
+  `_candidate_intersection`, which `simulation/seats.py` does.
+- A flexible leaf's snapshot STL is imported by bare filename, so an
+  assembly in a different Python package from the leaf renders it as
+  nothing at all, silently. `simulation/beltview.py` sits beside the model
+  rather than under `simulation/tools/` for that reason alone.
 
 ## Risks / Trade-offs
 

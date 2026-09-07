@@ -2,7 +2,7 @@
 
 `Art3` is the link between the elbow and the forearm's own yaw. Its own
 parts do not move relative to each other; what it carries does. The
-126-tooth pulley on its elbow axis is what the shoulder's belt drives, and
+117-tooth pulley on its elbow axis is what the shoulder's belt drives, and
 its 34 mm stepper drives the forearm's yaw through a ten-tooth pinion into
 the twenty-tooth gear at the foot of the transmission column.
 
@@ -27,8 +27,13 @@ PINION_TEETH = 10
 #: How far the pinion turns for one turn of the forearm.
 COLUMN_RATIO = COLUMN_TEETH / PINION_TEETH
 
-#: Teeth on the elbow pulley the shoulder's belt drives.
-ELBOW_PULLEY_TEETH = 126
+#: Teeth on the elbow pulley the shoulder's belt drives, from its own
+#: 37.000 mm tip radius: a GT2 pulley's tip radius is its pitch radius less
+#: 0.254, so the pitch circle is 37.254 and pi times its diameter divided
+#: by the 2 mm pitch is 117.04. Counting the section's teeth directly gave
+#: 126, because the section a plane takes through this pulley catches only
+#: about a sixth of the circle; see docs/measurements.md.
+ELBOW_PULLEY_TEETH = 117
 
 #: The forearm's yaw axis, in this frame: this frame's own -Z, because the
 #: whole Art3 document is turned end for end inside the upper arm.

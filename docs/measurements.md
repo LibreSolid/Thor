@@ -148,22 +148,70 @@ opening, closing to zero at an 89.7° crank swing.
 
 ## The belts
 
-| belt | pulleys | taut loop | teeth | the design's own part |
-| --- | --- | --- | --- | --- |
-| elbow | 20T at the shoulder axis, 117T at the elbow, two Ø12 idlers at (±14.5, 99.85) | 397.64 mm | 199 | `GT2_Belt_Art3`, placed clear of both pulleys |
-| wrist ×2 | 20T at (±24, ·, 33.6), 40T on the fork axis, 81.51 mm apart | 221.53 mm | 111 | `Belt_GT2-208mm`, placed lying flat |
+Each belt is a taut loop on the pulleys the assembly actually places, read
+off those pulleys' own toothed cylinders. A GT2 pulley's tip radius is its
+pitch radius less 0.254, which is how the tooth counts below are confirmed
+rather than assumed: 6.112 is a 20-tooth pulley and nothing else, 12.478 a
+40-tooth one, 37.000 a 117-tooth one.
 
-Wrap angles on the elbow belt: 163.1° on the drive pulley, 52.4° on each
-idler, 92.2° on the elbow pulley. On a wrist belt: 189.0° and 171.0°.
+| belt | pulleys | centres | taut loop | teeth | the design's own part |
+| --- | --- | --- | --- | --- | --- |
+| elbow | 20T on the shoulder axis, 117T on the elbow axis | 160.00 mm | 462.98 mm | 231 | `GT2_Belt_Art3`, placed clear of both pulleys |
+| wrist ×2 | 20T at (±24, ·, 33.6), 40T on the fork axis | 81.51 mm | 223.52 mm | 112 | `Belt_GT2-208mm`, placed lying flat |
 
-Two findings fall out of this table. The forearm belts are named for
-208 mm and their pulleys need 221.5; the design's own belt solid measures
-about 220 mm, so the name is what is wrong. And the elbow belt's two
-pulleys do not share a plane: the drive pulley's belt land is centred
-17.15 along the shoulder axis in the upper arm's frame and the elbow
-pulley's 25.0, **7.85 mm apart**, which no 6 mm belt can bridge. The model
-draws that belt in the drive pulley's plane and records the offset rather
-than quietly splitting the difference.
+Wrap angles: 157.75° on the elbow belt's drive pulley and 202.25° on the
+elbow pulley; 171.04° and 188.96° on a wrist belt. The smaller pulley
+always takes the smaller wrap, which is worth stating because getting it
+backwards is an easy arithmetic slip that still sums to a full turn — and
+costs 2 mm of belt on a two-to-one pair.
+
+Four findings fall out of this table.
+
+**The arm's tensioners do not touch its belt.** The two sprung tensioner
+pulleys run on Ø12 surfaces at (±14.5, 99.85) in the upper arm's frame,
+and the taut run between the two belt pulleys passes 11.41 mm from their
+centres — **5.41 mm clear of their rims**. They are solved retracted. The
+model therefore draws a two-pulley loop; putting the idlers in the path
+produced a 407 mm belt where the two pulleys alone already demand 463,
+which is the arithmetic saying the same thing.
+
+**The arm's two pulleys barely share a plane.** Their belt lands, along
+the shoulder axis in the upper arm's frame, are 12.650–21.651 on the drive
+pulley and 18.000–33.000 on the elbow pulley: **3.65 mm of shared height
+for a 6 mm belt**. The model centres the belt at 19.825, in the middle of
+what they do share, and records the shortfall. The tensioners' own land,
+18.000–25.000, is the elbow pulley's plane, not the drive pulley's.
+
+**The forearm has no such trouble.** Its motor pulley's land is
+−26.900…−17.900 and its wrist pulley's −26.500…−19.000 in the forearm's
+frame: 7.5 mm shared, carrying the 6 mm belt with three quarters of a
+millimetre either side. The belt plane is −22.750, and the mirrored pair
+is +22.750.
+
+**The forearm belts are named for a length they cannot have.** The parts
+are called `Belt_GT2-208mm` and their pulleys, where the assembly puts
+them, ask for 223.52 mm — 15.5 mm more, or eight teeth.
+
+## What still shares space
+
+At the home pose 272 pairs of solids share more than 0.05 mm³. Thirteen
+are recorded in `simulation/seats.py`, each verified against the design's
+own geometry. The rest break down as:
+
+| what meets what | pairs | what it is |
+| --- | --- | --- |
+| a screw and a printed part | 132 | mostly the last millimetre of a thread in the part it is driven into, which a self-tapping screw really does occupy; some are the model's own, where a stack's ends are read a hair wide |
+| a nut and a printed part | 83 | a nut seated in a pocket whose axial extent the probe reads from the flats, which include the lead-in chamfer |
+| two printed or bought parts | 40 | thirteen recorded; of the rest, four are catalogue envelopes drawn here (the Arduino board, the 50 mm fan frame, the servo horn in its servo) that the design's own components do not have, and the others are unexamined |
+| a nut and a screw | 15 | the thread inside its own nut |
+| two screws | 2 | two stacks on one axis that should be one |
+
+That list is the honest state of the fastener derivation, not a claim
+that each is the design's. Four systematic causes have been found and
+fixed -- a counterbore read as a gap, a nut trap read as a gap, a slot
+read as two holes, and a screw rounded up to the next standard length --
+which took the count from 406 to 272. What remains needs the same
+treatment: find the cause, fix the derivation, and let the number fall.
 
 ## The fasteners
 
@@ -181,20 +229,22 @@ Signatures found across the machine:
 | M3 hex nut pocket | six planes at 2.90 from the axis — 5.80 across flats, a 5.5 nut with 0.3 mm of print clearance | — |
 
 Clustering those onto shared axes and splitting each axis into contiguous
-stacks at a 1.0 mm gap gives:
+stacks gives the table below. A counterbore, a nut pocket and the two ends
+of a slot are all read as parts of one stack rather than as breaks in it,
+because each of them is a place a screw passes through:
 
 | link | stacks | fasteners fitted | with a nut | unclassified |
 | --- | --- | --- | --- | --- |
-| Base | 49 | 37 | 6 | 12 |
-| Art1 | 65 | 64 | 45 | 1 |
-| Art2 | 60 | 37 | 22 | 23 |
-| Art3 | 33 | 20 | 8 | 13 |
-| Art4 | 54 | 44 | 24 | 10 |
+| Base | 50 | 37 | 6 | 13 |
+| Art1 | 52 | 36 | 19 | 16 |
+| Art2 | 50 | 30 | 18 | 20 |
+| Art3 | 34 | 20 | 8 | 14 |
+| Art4 | 54 | 44 | 20 | 10 |
 | Art56 | 26 | 14 | 6 | 12 |
-| **total** | **287** | **216** | **111** | **71** |
+| **total** | **266** | **181** | **77** | **85** |
 
-Lengths chosen, all M3 unless noted: 89 × 6, 55 × 8, 20 × 10, 6 × 12,
-26 × 16, 8 × 20, 7 × 25, 5 × 35, and 4 × M4 8.
+Lengths chosen, all M3: 80 × 6, 45 × 8, 12 × 10, 14 × 12, 7 × 16, 8 × 20,
+2 × 25, 5 × 30, 8 × 40.
 
 **The 71 unclassified stacks** are a hole through one part with neither a
 counterbore nor a nut pocket, and nothing in the geometry says whether they
