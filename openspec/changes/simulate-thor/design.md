@@ -178,12 +178,25 @@ interpenetrating: measured 46.2 and 3.2 mm³ at the two shoulder pinions,
 0.2 mm³ at the wrist bevels. A builder puts a printed pinion on its shaft at
 whatever angle drops into mesh; the FreeCAD assembly simply never bothered.
 Each pair's phase is therefore **measured** — the pinion is swept through
-one tooth pitch in 1° steps against its mate and the interference-free
-window's centre is taken — and recorded in `layout.py` with the window
-width, which is the pair's backlash and the bound the engagement contracts
-use. Measured for the shoulder at 2° resolution: tooth pitch 36°, the left
-pinion clear over roughly 29–36° and the right over 17–24°, a window of
-about 7° ≈ 1.2 mm of arc at the 10 mm pitch radius.
+one tooth pitch against its mate on the exact kernel and the centre of the
+window in which the pair shares least is taken — and recorded in
+`layout.MESH` with the window width, which is the pair's backlash and the
+bound the engagement contracts use. Sweeping the whole of a crown plate
+that is thirteen megabytes of STEP costs minutes per phase, so the mate is
+trimmed once to the box the pinion sweeps through and the sweep then runs
+on a solid the size of the pinion.
+
+| pair | phase | window | least shared |
+| --- | --- | --- | --- |
+| base pinion | 23.40° | 0.05° | 0.1965 mm³ |
+| shoulder pinion, −x | 31.5° | 5.0° | 0 |
+| shoulder pinion, +x | 19.5° | 5.0° | 0 |
+| forearm pinion | 31.0° | 4.0° | 24.2991 mm³ |
+| wrist bevel, −x | 0.4° | 0.4° | 0 |
+| wrist bevel, +x | 23.4° | 0.4° | 0 |
+
+Two pairs never reach zero however they are phased, and what fouls is not a
+tooth: those floors are findings, recorded in `simulation/seats.py`.
 
 Alternative considered: keeping the design's phase and admitting the
 overlaps into the seats inventory. Rejected: gears that overlap at rest
@@ -299,15 +312,52 @@ pilot's decision.
 6. **`Art4Optodisk` passes 24.1 mm³ through `Art3Body`'s wall.** The
    optical disc's rim overlaps the body rather than running in a slot cut
    for it.
-7. **`Art56Interface` is drawn and exported but never placed.** The tool
-   flange is in `step/`, `stl/` and `freecad-src/` and appears in no
-   assembly document; the gripper mounts directly to the gear plate.
+7. **Three parts are drawn and exported but never placed.**
+   `Art56Interface`, `Art1OptoFix` and `Art4BearingPlug` are in `step/`,
+   `stl/` and `freecad-src/` and appear in no assembly document; the
+   gripper mounts directly to the gear plate.
 8. **`GripperFinger` is used mirrored.** The design places one
    `GripperFinger` and one `Part::Mirroring` of it; only the unmirrored
    part is exported to `step/` and `stl/`, so a builder printing from the
    published files gets two identical fingers, not a handed pair.
 9. **The design models no fastener.** Every joint's screws and nuts are
-   implied by holes and pockets and stated nowhere in the repository.
+   implied by holes and pockets and stated nowhere in the repository. The
+   model derives 216 of them, 111 with nuts, and leaves 71 further hole
+   stacks unclassified because nothing in the geometry says whether they
+   take a screw.
+10. **The base pinion has no interference-free phase.** It stands 2 mm
+    taller than `Art1Bot`'s fifty-tooth ring, and its top rim cuts the rim
+    above the teeth by 0.1965 mm³ at every phase.
+11. **The forearm pinion's lower flange fouls the transmission column.**
+    The flange is 12.0 in radius against the teeth's 10.8, and the ring at
+    the foot of the column's twenty-tooth gear is not relieved for it:
+    24.2991 mm³ at every phase.
+12. **The elbow belt's two pulleys are not in the same plane.** The drive
+    pulley's belt land is centred 17.15 along the shoulder axis in the
+    upper arm's frame and the elbow pulley's 25.0 — 7.85 mm apart, which
+    no 6 mm belt can bridge. The model draws that belt in the drive
+    pulley's plane and records the offset.
+13. **The forearm belts are named for 208 mm and their pulleys need
+    221.5.** The design's own belt solid measures about 220 mm, so the
+    name is what is wrong; a builder buying by it gets a belt that cannot
+    close.
+14. **All three belt solids are placed where their pulleys are not.** Both
+    forearm belts lie flat in a plane perpendicular to their pulleys' axes,
+    and the arm's belt is placed clear of both of its pulleys.
+15. **Two published parts are exported inside out**, `Art2MotorGear` at
+    −8435.0 mm³ and `Art4BodyBot` at −113674.9 mm³.
+16. **`GripperActiveArm` and `GripperPassiveArm` each hold two solids**:
+    the arm, and a loose Ø3.4 × 5.0 pin of 45.4 mm³ standing in its outer
+    pivot hole with 0.3 mm of clearance. A builder slicing those files
+    gets a plug printed inside the hole.
+17. **Seven printed parts tessellate to a mesh that is not closed** at the
+    default 0.1 mm deflection, although their exact geometry is sound:
+    `Art1Body`, `Art1Top`, `Art1GearMotor`, `Art2BodyB`, `Art2MotorGear`,
+    `Art3Body` and `Art4BodyBot`. Every contract here is therefore decided
+    on solids.
+18. **`Art3Pulley` has 117 teeth**, not the 126 a Fourier count of its own
+    section suggests: its 37.000 tip radius gives 117.04 through GT2's own
+    geometry, and the section samples too little of the circle to count.
 
 ## Risks / Trade-offs
 

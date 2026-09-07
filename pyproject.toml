@@ -1,0 +1,11 @@
+[project]
+name = "thor-simulation"
+version = "0.1.0"
+description = "solid-node simulation layer for the Thor 6-DOF robot arm"
+requires-python = ">=3.10"
+
+[tool.solid-node]
+model = "simulation.thor:Thor"
+
+[tool.libresolid-studio]
+profile = "builder"
