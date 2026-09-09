@@ -341,9 +341,21 @@ class ThorTest(TestCase):
                                 (25.0, 30.0), (-40.0, -60.0)):
             self.pose(art2=shoulder, art3=elbow)
             with self.subTest(art2=shoulder, art3=elbow):
-                self.assertAlmostEqual(
-                    float(self.part('shoulder').drive.value),
-                    shoulder + ELBOW_RATIO * elbow, delta=1e-9)
+                housing = self.part('shoulder')
+                drive = shoulder + ELBOW_RATIO * elbow
+                self.assertAlmostEqual(float(housing.drive.value), drive,
+                                       delta=1e-9)
+                # The coordinate being right is not enough: the pulley
+                # and the disc are turned by hand in the housing's own
+                # simulate(), where its own derived coordinate is not yet
+                # bound, so the applied rotation is the contract.
+                for name in ('elbow_drive_pulley', 'art23_optodisk'):
+                    turned = [abs(float(op.angle)) for op
+                              in getattr(housing, name).operations
+                              if getattr(op, '_motion', False)]
+                    self.assertEqual(len(turned), 1, name)
+                    self.assertAlmostEqual(turned[0], abs(drive),
+                                           delta=1e-9, msg=name)
 
     def test_turning_the_elbow_turns_the_forearm(self):
         self.pose()

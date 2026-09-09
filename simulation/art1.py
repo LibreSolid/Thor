@@ -162,7 +162,14 @@ class Art1(AssemblyNode):
         # their own bearings, which a joint cannot yet be declared for.
         # See README, "What still turns by hand".
         shoulder = placing.bound(self.art2.shoulder)
-        drive = placing.bound(self.drive)
+        # Not `self.drive`: a node's own derived coordinate is solved
+        # after its simulate() has run, so reading it here yields the
+        # unbound slot and turns nothing (the framework's warts log,
+        # 2026-09-09). The two joints it is made of were bound by the
+        # root's relations before this phase, so the same sum is taken
+        # from them; `drive` above stays the motor's relation and the
+        # contract the tests read.
+        drive = shoulder + ELBOW_RATIO * placing.bound(self.art2.art3.elbow)
         for pinion_label, _motor_label in SHOULDER_DRIVE:
             getattr(self, PLACEMENT[pinion_label]).rotate(
                 _sign(pinion_label) * SHOULDER_RATIO * shoulder,
