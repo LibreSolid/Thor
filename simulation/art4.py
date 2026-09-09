@@ -20,20 +20,28 @@ motors' twenty.
 
 import math
 
-from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
+from solid_node.motion.joints import Revolute
+from solid_node.node import AssemblyNode
 
 from simulation import fasteners, flexibles, layout, parts, placing
-from simulation.art56 import Art56
+from simulation.art56 import (CROWN_RATIO, WRIST_AXIS_IN_FOREARM,
+                              WRIST_HEIGHT, WRIST_TURN, Art56)
 from simulation.hardware import CATALOGUE
 
 GROUP = 'AssemblyArt4'
 
 #: The wrist axis, in this frame: the line the fork's two bearings and the
-#: 102 mm axle share, 111.5 above the forearm's own origin.
-WRIST_AXIS = (0.0, 1.0, 0.0)
-WRIST_HEIGHT = 111.5
-#: How far the wrist's own frame is turned about Z inside this one.
-WRIST_TURN = 90.0
+#: 102 mm axle share, 111.5 above the forearm's own origin. Stated by
+#: `simulation.art56`, the body that rolls on it.
+WRIST_AXIS = WRIST_AXIS_IN_FOREARM
+
+#: The forearm's own yaw axis in the link's frame, and where its own
+#: frame stands on it: the whole Art4 document is turned end for end
+#: inside Art3, so that frame's own -Z is this one's +Z.
+YAW_AXIS_IN_LINK = (0.0, 0.0, -1.0)
+FOREARM_ORIGIN = (0.0, 0.0, -1.0)
+FOREARM_TURN = 180.0
+FOREARM_TURN_AXIS = (0.0, 1.0, 0.0)
 
 #: Teeth on the transmission column's gear and on the elbow motor's pinion.
 COLUMN_TEETH = 20
@@ -113,15 +121,17 @@ def belt_travel(turn):
         flexibles.WRIST_DRIVEN_TEETH)
 
 
+def _sign(label):
+    """Which way a placed part's own +Z runs against the wrist axis."""
+    return placing.axis_sign(layout.link(GROUP, label), WRIST_AXIS)
+
+
 class Art4(AssemblyNode):
     """The forearm and the wrist it carries."""
 
-    #: The wrist's roll about the fork's axis, degrees.
-    wrist = RotationalPort(unit='deg')
-    #: The tool's roll about the wrist output axis, degrees.
-    tool = RotationalPort(unit='deg')
-    #: The gripper's clear opening, mm.
-    grip = TranslationalPort(unit='mm')
+    #: The forearm turns on the slewing race at the foot of its column,
+    #: about the link's own axis.
+    yaw = Revolute(axis=YAW_AXIS_IN_LINK, at=FOREARM_ORIGIN, unit='deg')
 
     art4_transmission_column = parts.Art4TransmissionColumn()
     art4_body_bot = parts.Art4BodyBot()
@@ -157,6 +167,28 @@ class Art4(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
+    #: Each wrist pinion's absolute turn about the wrist axis: the one
+    #: the design puts on -x of the wrist frame gets the sum and the one
+    #: on +x the difference. That is the differential, seen from outside.
+    left = art56.wrist + CROWN_RATIO * art56.output.tool
+    right = art56.wrist - CROWN_RATIO * art56.output.tool
+
+    # An open belt turns both its pulleys the same way about the same
+    # axis, at the ratio of their teeth; each motor's own shaft is its
+    # pulley's. Which motor drives which pulley is read off the assembly:
+    # motor 2 sits on the -y side and shares its belt band with the wrist
+    # pulley the design calls M005.
+    left.drives(wrist_motor_2.spin,
+                ratio=BELT_RATIO * _sign('Stepper_Nema17x34002'))
+    right.drives(wrist_motor_1.spin,
+                 ratio=BELT_RATIO * _sign('Stepper_Nema17x34001'))
+
+    # Each belt feeds the arc its own wrist pulley turns through, about
+    # the wrist axis and in this frame, which is what makes it the
+    # pulley's turn relative to the belt's own plane.
+    left.drives(wrist_belt_1.travel, ratio=belt_travel(1.0))
+    right.drives(wrist_belt_2.travel, ratio=belt_travel(1.0))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT)
@@ -172,42 +204,16 @@ class Art4(AssemblyNode):
                 belt.rotate(turn, [0.0, 0.0, 1.0])
             belt.translate(list(offset))
 
-    def pinion_turns(self, wrist, tool):
-        """Each wrist pinion's absolute turn about the wrist axis.
-
-        The pinion the design puts on -x of the wrist frame gets the sum
-        and the one on +x the difference: that is the differential, seen
-        from outside.
-        """
-        spin = self.art56.pinion_spin(tool)
-        return wrist + spin, wrist - spin
-
     def simulate(self):
-        wrist = placing.bound(self.wrist)
-        tool = placing.bound(self.tool)
-        self.art56.tool = self.tool
-        self.art56.grip = self.grip
-        # The wrist frame's own +X is this frame's +Y, and its origin is on
-        # the fork's axis, so the roll is a turn about its own X.
-        self.art56.rotate(wrist, [1.0, 0.0, 0.0])
-        left, right = self.pinion_turns(wrist, tool)
-        for label, turn in (('Pulley_GT2x20001', left),
-                            ('Pulley_GT2x20002', right)):
-            pulley_attribute, motor_label = MOTOR_DRIVES[label]
-            # An open belt turns both its pulleys the same way about the
-            # same axis; the pulley signs differ only because the design
-            # places the two of them facing opposite ways.
-            about_axis = BELT_RATIO * turn
-            pulley_sign = placing.axis_sign(layout.link(GROUP, label),
-                                            WRIST_AXIS)
+        # Two motor pulleys the design places, turning on their own
+        # shafts; see README, "What still turns by hand". `left` and
+        # `right` are this node's own derived coordinates and are solved
+        # after simulate(), so the sum is redone here from the two joints
+        # the root has already bound.
+        wrist = placing.bound(self.art56.wrist)
+        spin = CROWN_RATIO * placing.bound(self.art56.output.tool)
+        for label, turn in (('Pulley_GT2x20001', wrist + spin),
+                            ('Pulley_GT2x20002', wrist - spin)):
+            pulley_attribute, _motor_label = MOTOR_DRIVES[label]
             getattr(self, pulley_attribute).rotate(
-                pulley_sign * about_axis, [0.0, 0.0, 1.0])
-            motor_sign = placing.axis_sign(layout.link(GROUP, motor_label),
-                                           WRIST_AXIS)
-            motor = getattr(self, PLACEMENT[motor_label])
-            motor.spin = motor_sign * about_axis
-        # Each belt feeds the arc its own wrist pulley turns through --
-        # about the wrist axis, and in this frame, which is what makes it
-        # the pulley's turn relative to the belt's own plane.
-        self.wrist_belt_1.travel = belt_travel(left)
-        self.wrist_belt_2.travel = belt_travel(right)
+                _sign(label) * BELT_RATIO * turn, [0.0, 0.0, 1.0])

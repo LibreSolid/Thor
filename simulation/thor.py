@@ -84,6 +84,21 @@ class Thor(AssemblyNode):
     base = Base()
     shoulder = Art1()
 
+    # Every driver reaches the freedom it names, wherever that freedom
+    # lives: a relation walks the tree by path, so nothing between the
+    # root and a joint five levels down has to carry a value it does not
+    # itself use. `art3` is the one that is not a joint, because it is
+    # not a freedom of one body: it is the forearm's angle in the machine
+    # frame, and the shoulder housing works out the elbow from it.
+    art1.drives(base.yaw)
+    art1.drives(shoulder.yaw)
+    art2.drives(shoulder.art2.shoulder)
+    art3.drives(shoulder.elbow_absolute)
+    art4.drives(shoulder.art2.art3.art4.yaw)
+    art5.drives(shoulder.art2.art3.art4.art56.wrist)
+    art6.drives(shoulder.art2.art3.art4.art56.output.tool)
+    grip.drives(shoulder.art2.art3.art4.art56.output.gripper.grip)
+
     instructions = {
         'Home': Instruction(
             {'art1': 0.0, 'art2': 0.0, 'art3': 0.0, 'art4': 0.0,
@@ -116,15 +131,3 @@ class Thor(AssemblyNode):
     def render(self):
         self.shoulder.translate(
             list(layout.link('root', 'AssemblyArt1').translate))
-
-    def simulate(self):
-        # The base's own pinion turns with the arm above it; the base
-        # works out its own ratio.
-        self.base.yaw = self.art1
-        self.shoulder.rotate(self.art1, [0.0, 0.0, 1.0])
-        self.shoulder.shoulder = self.art2
-        self.shoulder.elbow = self.art3
-        self.shoulder.yaw = self.art4
-        self.shoulder.wrist = self.art5
-        self.shoulder.tool = self.art6
-        self.shoulder.grip = self.grip

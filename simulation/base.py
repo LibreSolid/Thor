@@ -7,7 +7,8 @@ board and its panel furniture, and the four fans that cool the drivers.
 Every placement is the design's own, from `simulation.layout`.
 """
 
-from solid_node.node import AssemblyNode, RotationalPort
+from solid_node.node import AssemblyNode
+from solid_node.motion.ports import RotationalPort
 
 from simulation import fasteners, layout, parts, placing
 from simulation.hardware import CATALOGUE
@@ -60,6 +61,15 @@ BASE_RATIO = RING_TEETH / PINION_TEETH
 #: The base's yaw axis, in this frame.
 YAW_AXIS = (0.0, 0.0, 1.0)
 
+#: Which way each moving part's own +Z runs against that axis: the design
+#: puts a pinion and the motor under it facing opposite ways, so the same
+#: physical turn is one sign in one part's frame and the other in its
+#: neighbour's.
+PINION_SIGN = placing.axis_sign(
+    layout.link(GROUP, 'Art1GearMotor_Art1GearMotor'), YAW_AXIS)
+MOTOR_SIGN = placing.axis_sign(
+    layout.link(GROUP, 'Stepper_Nema17x40001'), YAW_AXIS)
+
 
 class Base(AssemblyNode):
     """The plinth the arm stands on.
@@ -99,16 +109,19 @@ class Base(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
+    #: An internal pair turns the same way, and the pinion turns as many
+    #: times as the ring has teeth over its own. The motor's own shaft is
+    #: the pinion's, so it reads the same turn through its port.
+    yaw.drives(stepper_nema17x40.spin, ratio=BASE_RATIO * MOTOR_SIGN)
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT, phases=PHASES)
 
     def simulate(self):
-        yaw = placing.bound(self.yaw)
-        turn = BASE_RATIO * yaw
-        sign = placing.axis_sign(
-            layout.link(GROUP, 'Art1GearMotor_Art1GearMotor'), YAW_AXIS)
-        self.art1_gear_motor.rotate(sign * turn, [0.0, 0.0, 1.0])
-        motor_sign = placing.axis_sign(
-            layout.link(GROUP, 'Stepper_Nema17x40001'), YAW_AXIS)
-        self.stepper_nema17x40.spin = motor_sign * turn
+        # The pinion is a printed part placed by the design, so nothing
+        # declares where its axis is; see README, "What still turns by
+        # hand".
+        self.art1_gear_motor.rotate(
+            PINION_SIGN * BASE_RATIO * placing.bound(self.yaw),
+            [0.0, 0.0, 1.0])

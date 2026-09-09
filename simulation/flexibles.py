@@ -34,7 +34,8 @@ import math
 
 import molejo
 
-from solid_node.node import MolejoNode, TranslationalPort
+from solid_node.node import MolejoNode
+from solid_node.motion.ports import TranslationalPort
 
 from simulation import materials
 

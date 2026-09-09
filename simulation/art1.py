@@ -13,7 +13,8 @@ machine frame while its angle relative to the upper arm changes by exactly
 as much as the shoulder moved.
 """
 
-from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
+from solid_node.motion.joints import Revolute
+from solid_node.node import AssemblyNode
 
 from simulation import fasteners, layout, parts, placing
 from simulation.art2 import Art2
@@ -46,6 +47,11 @@ SHOULDER_AXIS = (0.0, 1.0, 0.0)
 ARM_ORIGIN = (0.0, -68.0, 123.0)
 ARM_TURN = 180.0
 ARM_TURN_AXIS = (0.0, 0.7071067811865476, 0.7071067811865476)
+
+#: The base's yaw axis, and where this housing stands on it, both in the
+#: machine frame the root places this node in.
+YAW_AXIS = (0.0, 0.0, 1.0)
+YAW_ANCHOR = tuple(layout.link('root', 'AssemblyArt1').translate)
 
 PLACEMENT = {
     'Art1Bot_Art1Bot': 'art1_bot',
@@ -80,21 +86,16 @@ SHOULDER_DRIVE = (('Art2MotorGear_Art2MotorGear', 'Nema17_GearBox002'),
                   ('Art2MotorGear_Art2MotorGear001', 'Nema17_GearBox001'))
 
 
+def _sign(label):
+    """Which way a placed part's own +Z runs against the shoulder axis."""
+    return placing.axis_sign(layout.link(GROUP, label), SHOULDER_AXIS)
+
+
 class Art1(AssemblyNode):
     """The shoulder housing and the arm above it."""
 
-    #: The shoulder's angle in the machine frame, degrees.
-    shoulder = RotationalPort(unit='deg')
-    #: The forearm's absolute angle in the machine frame, degrees.
-    elbow = RotationalPort(unit='deg')
-    #: The forearm's yaw about its own axis, degrees.
-    yaw = RotationalPort(unit='deg')
-    #: The wrist's roll, degrees.
-    wrist = RotationalPort(unit='deg')
-    #: The tool's roll, degrees.
-    tool = RotationalPort(unit='deg')
-    #: The gripper's clear opening, mm.
-    grip = TranslationalPort(unit='mm')
+    #: The whole housing yaws with the base, about the machine's own Z.
+    yaw = Revolute(axis=YAW_AXIS, at=YAW_ANCHOR, unit='deg')
 
     art1_bot = parts.Art1Bot()
     art1_top = parts.Art1Top()
@@ -123,6 +124,25 @@ class Art1(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
+    #: The forearm's angle in the machine frame: the shoulder's own swing
+    #: plus the elbow's angle relative to the arm. The root drives THIS,
+    #: and the elbow joint two levels down is what the relation solves
+    #: for -- which is the belt anchored below the shoulder, stated once.
+    elbow_absolute = art2.shoulder + art2.art3.elbow
+
+    # Each shoulder motor drives its pinion inside the ring, so it turns
+    # as many times as the ring has teeth over the pinion's own.
+    art2.shoulder.drives(shoulder_motor_2.spin,
+                         ratio=SHOULDER_RATIO * _sign('Nema17_GearBox002'))
+    art2.shoulder.drives(shoulder_motor_1.spin,
+                         ratio=SHOULDER_RATIO * _sign('Nema17_GearBox001'))
+
+    # The elbow belt's driving pulley is on the shoulder axis but is
+    # carried here, so its motor turns by the elbow's ABSOLUTE angle at
+    # the belt's own ratio, whatever the shoulder is doing.
+    elbow_absolute.drives(elbow_motor.spin,
+                          ratio=ELBOW_RATIO * _sign('Nema17_GearBox003'))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT, phases=PHASES)
@@ -130,38 +150,16 @@ class Art1(AssemblyNode):
         self.art2.translate(list(ARM_ORIGIN))
 
     def simulate(self):
-        shoulder = placing.bound(self.shoulder)
-        elbow = placing.bound(self.elbow)
-        self.art2.shoulder = self.shoulder
-        self.art2.elbow = self.elbow
-        self.art2.yaw = self.yaw
-        self.art2.wrist = self.wrist
-        self.art2.tool = self.tool
-        self.art2.grip = self.grip
-        # The arm's own frame sits on the shoulder axis and its own +Z runs
-        # along it, so the swing is a turn about its own Z.
-        self.art2.rotate(shoulder, [0.0, 0.0, 1.0])
-        # An internal pair turns the same way, and the pinion turns as many
-        # times as the ring has teeth over its own.
-        for pinion_label, motor_label in SHOULDER_DRIVE:
-            turn = SHOULDER_RATIO * shoulder
-            sign = placing.axis_sign(layout.link(GROUP, pinion_label),
-                                     SHOULDER_AXIS)
+        # What is left by hand: four parts the design places, turning on
+        # their own bearings, which a joint cannot yet be declared for.
+        # See README, "What still turns by hand".
+        shoulder = placing.bound(self.art2.shoulder)
+        drive = ELBOW_RATIO * placing.bound(self.elbow_absolute)
+        for pinion_label, _motor_label in SHOULDER_DRIVE:
             getattr(self, PLACEMENT[pinion_label]).rotate(
-                sign * turn, [0.0, 0.0, 1.0])
-            motor_sign = placing.axis_sign(layout.link(GROUP, motor_label),
-                                           SHOULDER_AXIS)
-            getattr(self, PLACEMENT[motor_label]).spin = motor_sign * turn
-        # The elbow belt's driving pulley is on the shoulder axis but is
-        # carried here, so it turns by the elbow's absolute angle at the
-        # belt's own ratio, whatever the shoulder is doing.
-        drive = ELBOW_RATIO * elbow
-        pulley_sign = placing.axis_sign(
-            layout.link(GROUP, 'Pulley_GT2x20_Modified001'), SHOULDER_AXIS)
-        self.elbow_drive_pulley.rotate(pulley_sign * drive, [0.0, 0.0, 1.0])
-        disk_sign = placing.axis_sign(
-            layout.link(GROUP, 'Art23Optodisk_Art23Optodisk'), SHOULDER_AXIS)
-        self.art23_optodisk.rotate(disk_sign * drive, [0.0, 0.0, 1.0])
-        motor_sign = placing.axis_sign(
-            layout.link(GROUP, 'Nema17_GearBox003'), SHOULDER_AXIS)
-        self.elbow_motor.spin = motor_sign * drive
+                _sign(pinion_label) * SHOULDER_RATIO * shoulder,
+                [0.0, 0.0, 1.0])
+        self.elbow_drive_pulley.rotate(
+            _sign('Pulley_GT2x20_Modified001') * drive, [0.0, 0.0, 1.0])
+        self.art23_optodisk.rotate(
+            _sign('Art23Optodisk_Art23Optodisk') * drive, [0.0, 0.0, 1.0])

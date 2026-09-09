@@ -9,17 +9,20 @@ The elbow's belt runs the length of this fork, from a pulley on the
 shoulder axis to the pulley on the elbow axis, clear of the two sprung
 tensioners the arm carries for it. The
 driving pulley is carried by `Art1`, not by this arm, so the belt holds the
-elbow at a fixed angle in the machine frame while the shoulder swings:
-`elbow` here is the forearm's **absolute** angle, and what this node
-applies is its angle relative to the upper arm.
+elbow at a fixed angle in the machine frame while the shoulder swings. The
+elbow joint on `Art3` therefore measures the forearm's angle **relative to
+this arm**; the machine-frame angle the maker drives is that plus this
+arm's own swing, a sum `Art1` states and the solver reads backwards.
 """
 
 import math
 
-from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
+from solid_node.motion.joints import Revolute
+from solid_node.node import AssemblyNode
 
 from simulation import fasteners, flexibles, layout, parts, placing
-from simulation.art3 import Art3
+from simulation.art3 import (ELBOW_ACROSS_ARM, ELBOW_ALONG_ARM,
+                             ELBOW_ACROSS_FOREARM, Art3)
 from simulation.hardware import CATALOGUE
 
 GROUP = 'AssemblyArt2'
@@ -27,17 +30,16 @@ GROUP = 'AssemblyArt2'
 #: Teeth on the internal ring cut into the shoulder plate.
 SHOULDER_RING_TEETH = 60
 
-#: The elbow axis in this frame, and the height of it above this frame's
-#: origin: the design puts the two plates' elbow bearings 160.0 from the
-#: shoulder along the arm and 68.0 out of the plate's own plane.
-ELBOW_AXIS = (0.0, 0.0, 1.0)
-ELBOW_ALONG_ARM = 160.0
-ELBOW_ACROSS_ARM = 68.0
+#: The shoulder axis in the housing's frame, and where this arm's own
+#: frame sits on it. Stated here because this is the body that swings:
+#: the housing reads them back to place the arm at rest.
+SHOULDER_AXIS = (0.0, 1.0, 0.0)
+ARM_ORIGIN = (0.0, -68.0, 123.0)
+ARM_TURN = 180.0
+ARM_TURN_AXIS = (0.0, 0.7071067811865476, 0.7071067811865476)
 
-#: The elbow's own axis inside the forearm's frame: 81.5 from the Art3
-#: origin, along that frame's own Y.
-ELBOW_PIVOT = (0.0, 0.0, 81.5)
-ELBOW_PIVOT_AXIS = (0.0, 1.0, 0.0)
+#: The elbow axis in this frame.
+ELBOW_AXIS = (0.0, 0.0, 1.0)
 
 #: The design places its belt loop flat, in a plane the pulleys are not in;
 #: the model draws the belt from its pulleys instead. See
@@ -111,20 +113,8 @@ def belt_travel(turn):
 class Art2(AssemblyNode):
     """The upper arm and the forearm it carries."""
 
-    #: The shoulder's own angle in the machine frame, degrees. This node
-    #: does not turn itself by it; it needs it to work out how far the
-    #: elbow has moved relative to the arm.
-    shoulder = RotationalPort(unit='deg')
-    #: The forearm's absolute angle in the machine frame, degrees.
-    elbow = RotationalPort(unit='deg')
-    #: The forearm's yaw about its own axis, degrees.
-    yaw = RotationalPort(unit='deg')
-    #: The wrist's roll, degrees.
-    wrist = RotationalPort(unit='deg')
-    #: The tool's roll, degrees.
-    tool = RotationalPort(unit='deg')
-    #: The gripper's clear opening, mm.
-    grip = TranslationalPort(unit='mm')
+    #: The arm swings about the shoulder axis, in the housing's frame.
+    shoulder = Revolute(axis=SHOULDER_AXIS, at=ARM_ORIGIN, unit='deg')
 
     art2_body_a = parts.Art2BodyA()
     art2_body_a_window = parts.Art2BodyAWindow()
@@ -175,32 +165,21 @@ class Art2(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
+    # The belt does not slip: what it feeds past a point is the arc the
+    # pulley it wraps has turned through. The elbow pulley is the one
+    # fixed in this frame -- the drive pulley belongs to Art1 and swings
+    # with the shoulder -- so the arc is the elbow's own movement
+    # relative to this arm, which is exactly what its joint measures.
+    art3.elbow.drives(elbow_belt.travel, ratio=belt_travel(1.0))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT)
         # The forearm's own frame sits at the elbow, turned a quarter turn
         # about this frame's X so that its own Y runs along the elbow axis.
         self.art3.rotate(90.0, [1.0, 0.0, 0.0])
-        self.art3.translate([0.0, ELBOW_ALONG_ARM + 81.5, ELBOW_ACROSS_ARM])
+        self.art3.translate([0.0, ELBOW_ALONG_ARM + ELBOW_ACROSS_FOREARM,
+                             ELBOW_ACROSS_ARM])
         # The belt is drawn in its own XY plane, which is this frame's, so
         # it needs only to be lifted onto its pulleys' land.
         self.elbow_belt.translate([0.0, 0.0, BELT_PLANE_Z])
-
-    def simulate(self):
-        shoulder = placing.bound(self.shoulder)
-        elbow = placing.bound(self.elbow)
-        self.art3.yaw = self.yaw
-        self.art3.wrist = self.wrist
-        self.art3.tool = self.tool
-        self.art3.grip = self.grip
-        # `elbow` is the forearm's angle in the machine frame; what the
-        # upper arm sees is the difference, because the belt that sets the
-        # elbow is anchored below the shoulder rather than on this arm.
-        placing.rotate_about(self.art3, elbow - shoulder,
-                             ELBOW_PIVOT_AXIS, ELBOW_PIVOT)
-        # The belt does not slip: what it feeds past a point is the arc the
-        # pulley it wraps has turned through. The elbow pulley is the one
-        # fixed in this frame -- the drive pulley belongs to Art1 and swings
-        # with the shoulder -- so the arc is read off the elbow's own
-        # movement relative to the arm.
-        self.elbow_belt.travel = belt_travel(elbow - shoulder)

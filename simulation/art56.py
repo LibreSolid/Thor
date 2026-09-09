@@ -16,15 +16,16 @@ drive share the pinions' shafts at x = ±18.
 Sign conventions, all about this frame's own +X (the wrist axis) and +Z
 (the tool axis):
 
-- `art5` turns the whole housing about +X. The parent applies it; nothing
-  in here reads it.
+- `art5` turns the whole housing about +X: the `wrist` joint below, stated
+  in the forearm's frame, where the same line is its +Y.
 - `tool` turns the crown, and the gripper on it, about +Z relative to the
-  housing.
+  housing: the `WristOutput.tool` joint.
 - each pinion, and the pulley on its shaft, spins `CROWN_RATIO * tool`
   about the wrist axis relative to the housing, the two in opposite senses.
 """
 
-from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
+from solid_node.motion.joints import Revolute
+from solid_node.node import AssemblyNode
 
 from simulation import fasteners, layout, parts, placing
 from simulation.gripper import Gripper
@@ -42,6 +43,14 @@ CROWN_RATIO = CROWN_TEETH / BEVEL_TEETH
 
 #: The wrist axis, in this frame.
 WRIST_AXIS = (1.0, 0.0, 0.0)
+
+#: The same axis in the forearm's frame, where the fork's two bearings and
+#: the 102 mm axle share it 111.5 above the forearm's origin, and how far
+#: this frame is turned about Z inside that one. Stated here because this
+#: is the body that rolls; the forearm reads them back to place it.
+WRIST_AXIS_IN_FOREARM = (0.0, 1.0, 0.0)
+WRIST_HEIGHT = 111.5
+WRIST_TURN = 90.0
 
 HOUSING_PLACEMENT = {
     'Art56MotorCoverRing_Art56MotorCoverRing': 'art56_motor_cover_ring',
@@ -72,14 +81,19 @@ PHASES = {
 
 
 
+def _sign(label):
+    """Which way a placed part's own +Z runs against the wrist axis."""
+    return placing.axis_sign(layout.link(GROUP, label), WRIST_AXIS)
+
+
 class WristOutput(AssemblyNode):
     """What the tool roll turns: the crown plate and the gripper on it.
 
-    The crown's own axis is this frame's +Z through the origin, so the
-    parent turns this node about that line and everything in it follows.
+    The crown's own axis is the housing frame's +Z through the origin,
+    which is this node's own origin too, so the joint is one rotation.
     """
 
-    grip = TranslationalPort(unit='mm')
+    tool = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
     art56_gear_plate = parts.Art56GearPlate()
     gripper = Gripper()
@@ -87,17 +101,14 @@ class WristOutput(AssemblyNode):
     def render(self):
         placing.place_from_design(self, GROUP, OUTPUT_PLACEMENT)
 
-    def simulate(self):
-        self.gripper.grip = self.grip
-
 
 class Art56(AssemblyNode):
     """The wrist housing, its differential, and the gripper it carries."""
 
-    #: The tool's roll about the wrist output axis, degrees.
-    tool = RotationalPort(unit='deg')
-    #: The gripper's clear opening, mm.
-    grip = TranslationalPort(unit='mm')
+    #: The whole housing rolls about the fork's axis, in the forearm's
+    #: frame.
+    wrist = Revolute(axis=WRIST_AXIS_IN_FOREARM,
+                     at=(0.0, 0.0, WRIST_HEIGHT), unit='deg')
 
     art56_motor_cover_ring = parts.Art56MotorCoverRing()
     common_bearing_fix_through = parts.CommonBearingFixThrough()
@@ -122,35 +133,19 @@ class Art56(AssemblyNode):
         placing.place_from_design(self, GROUP, HOUSING_PLACEMENT,
                                   phases=PHASES)
 
-    def pinion_spin(self, tool):
-        """How far each pinion turns about the wrist axis for a tool roll.
-
-        Positive is the sense of this frame's +X. The pinion on -X turns
-        one way and the pinion on +X the other; that is what makes the
-        pair a differential rather than a shaft.
-        """
-        return CROWN_RATIO * tool
-
     def simulate(self):
-        tool = placing.bound(self.tool)
-        self.output.grip = self.grip
-        # The crown turns about this frame's own +Z through the origin,
-        # which is the output node's own origin too.
-        self.output.rotate(tool, [0.0, 0.0, 1.0])
         # Each pinion, and the belt pulley sharing its shaft, spins about
         # the wrist axis. The two pinions face each other, so one turns
         # one way about that axis and the other the opposite way; the
-        # pulleys follow the pinions they share a shaft with. The design
-        # places these four parts facing four different ways, so each
-        # part's sign is read off its own placement rather than typed.
-        spin = CROWN_RATIO * tool
+        # pulleys follow the pinions they share a shaft with. All four
+        # are parts the design places, turning on their own bearings; see
+        # README, "What still turns by hand".
+        spin = CROWN_RATIO * placing.bound(self.output.tool)
         for label, attribute, about_axis in (
                 ('Art56SmallGear_Art56SmallGear', 'art56_small_gear_1', spin),
                 ('Art56SmallGear_Art56SmallGear001', 'art56_small_gear_2',
                  -spin),
                 ('GT2x40PulleyM005', 'gt2x40_pulley_1', spin),
                 ('GT2x40PulleyM006', 'gt2x40_pulley_2', -spin)):
-            placed = layout.link(GROUP, label)
-            sign = placing.axis_sign(placed, WRIST_AXIS)
-            getattr(self, attribute).rotate(sign * about_axis,
+            getattr(self, attribute).rotate(_sign(label) * about_axis,
                                             [0.0, 0.0, 1.0])

@@ -14,7 +14,8 @@ argued about on solids.
 
 import cadquery as cq
 
-from solid_node.node import AssemblyNode, CadQueryNode, RotationalPort
+from solid_node.node import AssemblyNode, CadQueryNode
+from solid_node.motion.ports import RotationalPort
 from solid_node.parameters import Count, Length, Ratio
 
 from simulation import materials, placing

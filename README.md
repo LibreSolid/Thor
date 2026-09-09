@@ -140,6 +140,52 @@ limits are not in this repository, so the ranges above are the mechanism's
 own travel where the geometry bounds it and the full circle otherwise;
 they are presentation only and clamp nothing.
 
+### How the model moves
+
+Every freedom of the machine is declared where the body that has it lives,
+as a `Revolute` joint stating the axis and the anchor **in the frame its
+parent places it in** — the base's yaw on `Art1`, the shoulder on `Art2`,
+the elbow on `Art3`, the forearm's yaw on `Art4`, the wrist on `Art56`, the
+tool roll on `WristOutput`. The framework carries each line into the moving
+part's own coordinates, so nothing here computes a pivot by hand: the
+elbow, whose axis sits 81.5 mm from the forearm's own origin, is one
+declaration rather than a translate–rotate–translate sandwich.
+
+The seven drivers reach those joints by **path**, from the root:
+
+```python
+art2.drives(shoulder.art2.shoulder)
+art5.drives(shoulder.art2.art3.art4.art56.wrist)
+```
+
+so no sub-assembly declares a port merely to hand a value to the one below
+it. Two of the relations are not that simple, and both are the mechanism
+talking:
+
+- `art3` is the forearm's angle in the machine frame, and the elbow joint
+  measures its angle relative to the upper arm. `Art1` declares the sum,
+  `art2.shoulder + art2.art3.elbow`, and the root drives *that*; the
+  solver works backwards to the elbow. Swing `art2` alone and the elbow
+  joint changes by exactly as much in the other direction, which is what
+  the belt anchored on the shoulder housing does.
+- The wrist is a differential, so each of its two motors turns for either
+  joint: `Art4` declares `wrist ± 2 · tool` and drives the motors and the
+  two belts from those.
+
+Gearing is a `ratio=` on the relation and belt travel is the pitch arc, so
+each motor and each belt is one line beside the pair it belongs to.
+
+#### What still turns by hand
+
+Five `simulate()` methods survive, and each does one thing: turn the
+printed gears, pulleys, optical discs and the ball cage that spin on their
+own bearings. A joint would say this better, but a joint's axis and anchor
+are resolved when the node is constructed, and a part placed by
+`place_from_design` only learns where it stands when its parent renders —
+so a joint cannot yet be anchored at a design-placed part's own origin.
+The gripper keeps its own kinematics too: its jaws are the couplers of a
+parallelogram and translate on a circle, which is not one lower pair.
+
 The instructions are `Home`, `Ready`, `Reach`, `Pick`, `Place` and `Park`.
 A scenario contract triggers all six in order, at the rate each joint's own
 mechanism allows, and asks the machine on the way whether it has driven any

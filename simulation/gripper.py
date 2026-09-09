@@ -25,7 +25,8 @@ within the 0.17 mm the design's own pin positions carry.
 """
 
 from solid_node.math import acos, cos, sin
-from solid_node.node import AssemblyNode, TranslationalPort
+from solid_node.node import AssemblyNode
+from solid_node.motion.ports import TranslationalPort
 
 from simulation import layout, parts, placing
 from simulation.hardware import CATALOGUE

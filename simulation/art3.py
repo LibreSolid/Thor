@@ -12,13 +12,24 @@ The forearm turns on a printed slewing race: thirty-six Ø6 balls on a
 half the speed, and the balls are shown turning at that rate.
 """
 
-from solid_node.node import AssemblyNode, RotationalPort, TranslationalPort
+from solid_node.motion.joints import Revolute
+from solid_node.node import AssemblyNode
 
 from simulation import fasteners, layout, parts, placing
-from simulation.art4 import Art4
+from simulation.art4 import (FOREARM_ORIGIN, FOREARM_TURN,
+                             FOREARM_TURN_AXIS, YAW_AXIS_IN_LINK, Art4)
 from simulation.hardware import CATALOGUE
 
 GROUP = 'AssemblyArt3'
+
+#: Where the elbow axis runs in the upper arm's frame: the design puts the
+#: two plates' elbow bearings 160.0 from the shoulder along the arm and
+#: 68.0 out of the plate's own plane. The forearm's own origin sits a
+#: further 81.5 along the arm, which is why turning it about its own
+#: origin would be wrong and the joint states the line instead.
+ELBOW_ALONG_ARM = 160.0
+ELBOW_ACROSS_ARM = 68.0
+ELBOW_ACROSS_FOREARM = 81.5
 
 #: Teeth on the transmission column's gear and on the pinion that drives it.
 COLUMN_TEETH = 20
@@ -36,8 +47,9 @@ COLUMN_RATIO = COLUMN_TEETH / PINION_TEETH
 ELBOW_PULLEY_TEETH = 117
 
 #: The forearm's yaw axis, in this frame: this frame's own -Z, because the
-#: whole Art3 document is turned end for end inside the upper arm.
-YAW_AXIS = (0.0, 0.0, -1.0)
+#: whole Art3 document is turned end for end inside the upper arm. Stated
+#: by `simulation.art4`, the body that turns on it.
+YAW_AXIS = YAW_AXIS_IN_LINK
 
 PLACEMENT = {
     'Art3Body_Art3Body': 'art3_body',
@@ -64,17 +76,21 @@ PHASES = {
 }
 
 
+def _sign(label):
+    """Which way a placed part's own +Z runs against the yaw axis."""
+    return placing.axis_sign(layout.link(GROUP, label), YAW_AXIS)
+
+
 class Art3(AssemblyNode):
     """The elbow's output link and the forearm it turns."""
 
-    #: The forearm's yaw about its own axis, degrees.
-    yaw = RotationalPort(unit='deg')
-    #: The wrist's roll, degrees.
-    wrist = RotationalPort(unit='deg')
-    #: The tool's roll, degrees.
-    tool = RotationalPort(unit='deg')
-    #: The gripper's clear opening, mm.
-    grip = TranslationalPort(unit='mm')
+    #: The elbow, stated in the upper arm's frame: this node's angle
+    #: RELATIVE to that arm. The machine-frame angle the maker drives is
+    #: the shoulder's swing plus this one; `simulation.art1` states that
+    #: sum and lets the solver work backwards to here.
+    elbow = Revolute(axis=(0.0, 0.0, 1.0),
+                     at=(0.0, ELBOW_ALONG_ARM, ELBOW_ACROSS_ARM),
+                     unit='deg')
 
     art3_body = parts.Art3Body()
     art23_optodisk = parts.Art23Optodisk()
@@ -98,32 +114,27 @@ class Art3(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
+    # An external pair turns the other way, and the pinion turns as many
+    # times as the column's gear has teeth over its own.
+    art4.yaw.drives(yaw_motor.spin,
+                    ratio=-COLUMN_RATIO * _sign('Stepper_Nema17x34001'))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT, phases=PHASES)
         # The forearm hangs one millimetre below this frame's origin, turned
         # end for end: its own +Z is this frame's -Z.
-        self.art4.rotate(180.0, [0.0, 1.0, 0.0])
-        self.art4.translate([0.0, 0.0, -1.0])
+        self.art4.rotate(FOREARM_TURN, list(FOREARM_TURN_AXIS))
+        self.art4.translate(list(FOREARM_ORIGIN))
 
     def simulate(self):
-        yaw = placing.bound(self.yaw)
-        self.art4.wrist = self.wrist
-        self.art4.tool = self.tool
-        self.art4.grip = self.grip
-        # The forearm's own +Z is the yaw axis and its origin is on it.
-        self.art4.rotate(yaw, [0.0, 0.0, 1.0])
-        # An external pair turns the other way, and the pinion turns as
-        # many times as the column's gear has teeth over its own.
-        pinion = -COLUMN_RATIO * yaw
-        sign = placing.axis_sign(
-            layout.link(GROUP, 'Art4MotorGear_Art4MotorGear'), YAW_AXIS)
-        self.art4_motor_gear.rotate(sign * pinion, [0.0, 0.0, 1.0])
-        motor_sign = placing.axis_sign(
-            layout.link(GROUP, 'Stepper_Nema17x34001'), YAW_AXIS)
-        self.yaw_motor.spin = motor_sign * pinion
+        # Two parts the design places, turning on their own bearings; see
+        # README, "What still turns by hand".
+        yaw = placing.bound(self.art4.yaw)
+        self.art4_motor_gear.rotate(
+            _sign('Art4MotorGear_Art4MotorGear') * -COLUMN_RATIO * yaw,
+            [0.0, 0.0, 1.0])
         # A ball cage between a turning race and a still one runs at half
         # the turning race's speed.
-        cage_sign = placing.axis_sign(
-            layout.link(GROUP, 'BearingBalls001'), YAW_AXIS)
-        self.bearing_balls.rotate(cage_sign * yaw / 2.0, [0.0, 0.0, 1.0])
+        self.bearing_balls.rotate(
+            _sign('BearingBalls001') * yaw / 2.0, [0.0, 0.0, 1.0])
