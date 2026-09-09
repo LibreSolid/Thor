@@ -6,11 +6,17 @@ the upper arm's shoulder plate, and one on the shoulder axis itself whose
 twenty-tooth GT2 pulley drives the elbow through a belt the length of the
 upper arm.
 
-That third motor is why the elbow's driver is an absolute angle. Its pulley
+That third motor is why the shoulder and the elbow are coupled. Its pulley
 is coaxial with the shoulder joint but carried by this housing, not by the
-arm: swing the shoulder and the belt holds the forearm's direction in the
-machine frame while its angle relative to the upper arm changes by exactly
-as much as the shoulder moved.
+arm, so what the belt sees is that pulley's turn RELATIVE TO THE ARM: hold
+the motor still, swing the shoulder by theta, and the 117-tooth elbow
+pulley turns against the arm by -20 theta / 117 -- not by -theta. Only
+equal pulleys would hold the forearm's direction in the machine frame, and
+reading it that way was this model's mistake.
+
+The machine is modelled the way a controller drives it instead: `art3` is
+the elbow's own angle, and this housing works out what its motor must turn
+to deliver it, `shoulder + (117/20) * elbow`.
 """
 
 from solid_node.motion.joints import Revolute
@@ -124,11 +130,16 @@ class Art1(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
-    #: The forearm's angle in the machine frame: the shoulder's own swing
-    #: plus the elbow's angle relative to the arm. The root drives THIS,
-    #: and the elbow joint two levels down is what the relation solves
-    #: for -- which is the belt anchored below the shoulder, stated once.
-    elbow_absolute = art2.shoulder + art2.art3.elbow
+    #: How far the elbow's drive train -- its pulley, its optical disc and
+    #: its motor -- turns about the shoulder axis relative to THIS housing.
+    #: The belt sees the drive pulley only against the arm, so the pulley
+    #: turns `drive - shoulder` there; the belt carries that onto the
+    #: 117-tooth elbow pulley at 20/117, giving
+    #: `(20/117)(drive - shoulder)`, and setting that equal to the elbow's
+    #: own angle leaves `drive = shoulder + (117/20) * elbow`. The
+    #: shoulder term is the compensation a controller has to make, stated
+    #: once, here, beside the motor that makes it.
+    drive = art2.shoulder + ELBOW_RATIO * art2.art3.elbow
 
     # Each shoulder motor drives its pinion inside the ring, so it turns
     # as many times as the ring has teeth over the pinion's own.
@@ -137,11 +148,8 @@ class Art1(AssemblyNode):
     art2.shoulder.drives(shoulder_motor_1.spin,
                          ratio=SHOULDER_RATIO * _sign('Nema17_GearBox001'))
 
-    # The elbow belt's driving pulley is on the shoulder axis but is
-    # carried here, so its motor turns by the elbow's ABSOLUTE angle at
-    # the belt's own ratio, whatever the shoulder is doing.
-    elbow_absolute.drives(elbow_motor.spin,
-                          ratio=ELBOW_RATIO * _sign('Nema17_GearBox003'))
+    # The motor is on the drive pulley's own shaft, so it turns with it.
+    drive.drives(elbow_motor.spin, ratio=_sign('Nema17_GearBox003'))
 
     def render(self):
         fasteners.place_all(self, GROUP)
@@ -154,7 +162,7 @@ class Art1(AssemblyNode):
         # their own bearings, which a joint cannot yet be declared for.
         # See README, "What still turns by hand".
         shoulder = placing.bound(self.art2.shoulder)
-        drive = ELBOW_RATIO * placing.bound(self.elbow_absolute)
+        drive = placing.bound(self.drive)
         for pinion_label, _motor_label in SHOULDER_DRIVE:
             getattr(self, PLACEMENT[pinion_label]).rotate(
                 _sign(pinion_label) * SHOULDER_RATIO * shoulder,

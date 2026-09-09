@@ -126,16 +126,26 @@ meshes rather than answering, so `--faceted` cannot run this machine.
 | --- | --- | --- |
 | `art1` | the base's yaw about Z | ±180° |
 | `art2` | the shoulder's roll about Y, 202.0 mm up | ±90° |
-| `art3` | the forearm's roll **in the machine frame** | ±135° |
+| `art3` | the elbow's roll, **relative to the upper arm** | ±135° |
 | `art4` | the forearm's yaw about its own axis | ±180° |
 | `art5` | the wrist's roll about Y, 556.0 mm up | ±105° |
 | `art6` | the tool's roll about the wrist output axis | ±180° |
 | `grip` | the clear opening between the two jaws | 0–69.94 mm |
 
-`art3` is absolute, not relative to the upper arm, because the machine is:
-the belt that sets the elbow runs from a pulley carried by the shoulder
-housing rather than by the arm. Swing `art2` alone and the forearm keeps
-pointing the same way while no elbow motor turns. The published joint
+Each of the seven is one joint: move one slider and one joint moves. `art3`
+used to be stated as the forearm's roll in the machine frame, on the
+argument that the elbow's drive pulley is carried by the shoulder housing
+rather than by the arm, so a shoulder swing would leave the forearm
+pointing where it was. That is true only for equal pulleys, and Thor's are
+not: the drive pulley has twenty teeth and the elbow pulley a hundred and
+seventeen, so with the motor still a swing of θ turns the forearm against
+the arm by −20 θ / 117, not by −θ. The earlier reading was wrong, and the
+model no longer makes it.
+
+The coupling is still there, and it is the motor's problem. `Art1` states
+what its elbow motor must turn, `shoulder + (117/20) · elbow`, which is the
+compensation a controller makes; swing `art2` alone and that motor turns.
+The published joint
 limits are not in this repository, so the ranges above are the mechanism's
 own travel where the geometry bounds it and the full circle otherwise;
 they are presentation only and clamp nothing.
@@ -162,12 +172,13 @@ so no sub-assembly declares a port merely to hand a value to the one below
 it. Two of the relations are not that simple, and both are the mechanism
 talking:
 
-- `art3` is the forearm's angle in the machine frame, and the elbow joint
-  measures its angle relative to the upper arm. `Art1` declares the sum,
-  `art2.shoulder + art2.art3.elbow`, and the root drives *that*; the
-  solver works backwards to the elbow. Swing `art2` alone and the elbow
-  joint changes by exactly as much in the other direction, which is what
-  the belt anchored on the shoulder housing does.
+- The elbow's motor sits on the shoulder housing, so the belt sees its
+  pulley only against the arm. `Art1` declares what that pulley turns
+  relative to the housing, `art2.shoulder + (117/20) · art2.art3.elbow`,
+  and drives the pulley, its optical disc and the motor from it. The
+  pulley then turns `drive − shoulder` against the arm, the belt carries
+  20/117 of that onto the elbow pulley, and what comes out is the elbow
+  angle the maker asked for.
 - The wrist is a differential, so each of its two motors turns for either
   joint: `Art4` declares `wrist ± 2 · tool` and drives the motors and the
   two belts from those.

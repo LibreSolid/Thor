@@ -12,6 +12,8 @@ second is an inventory — the set of overlapping pairs must be exactly the
 set `simulation.seats` records — rather than a bare "nothing touches".
 """
 
+import math
+
 from solid_node.simulation import ScenarioTest
 from solid_node.test import TestCase
 
@@ -293,16 +295,55 @@ class ThorTest(TestCase):
             float(self.part(ARM).elbow_belt.travel.value),
             art2.belt_travel(90.0), delta=1e-6)
 
-    # -- the elbow's absolute angle --
+    # -- the elbow is the elbow's own angle --
 
-    def test_swinging_the_shoulder_does_not_turn_the_forearm(self):
-        # Both poses are set here. Reading the rest height without posing
+    def test_swinging_the_shoulder_swings_the_forearm_with_the_arm(self):
+        # The correction. The elbow's drive pulley is carried by the
+        # shoulder housing, and that was once read as the belt holding the
+        # forearm's direction in the machine frame while the shoulder
+        # swings. That is true only for equal pulleys: with the motor still
+        # a swing of theta turns the 117-tooth elbow pulley against the arm
+        # by only -20 theta / 117. `art3` is the elbow's own angle instead,
+        # so a shoulder swing carries the forearm round with the arm and
+        # leaves the elbow where it was.
+        # Both poses are set here. Reading the rest attitude without posing
         # first measures whatever the previous test left behind, which is
         # a contract on the alphabet rather than on the machine.
         self.pose()
-        upright = self.forearm_height()
+        upright = self.forearm_direction()
+        self.assertAlmostEqual(self.elbow_angle(), 0.0, delta=1e-9)
         self.pose(art2=25.0)
-        self.assertAlmostEqual(self.forearm_height(), upright, delta=0.5)
+        self.assertAlmostEqual(self.forearm_direction(), upright + 25.0,
+                               delta=0.01)
+        self.assertAlmostEqual(self.elbow_angle(), 0.0, delta=1e-9)
+
+    def test_turning_the_elbow_turns_only_the_forearm(self):
+        # One slider, one joint: `art3` is the elbow, wherever the shoulder
+        # happens to be. Asked with the shoulder off zero, because that is
+        # where an absolute reading and a relative one part company.
+        self.pose(art2=25.0)
+        before = self.forearm_direction()
+        arm = self.arm_centroid()
+        self.pose(art2=25.0, art3=30.0)
+        self.assertAlmostEqual(self.elbow_angle(), 30.0, delta=1e-9)
+        self.assertAlmostEqual(self.forearm_direction(), before + 30.0,
+                               delta=0.01)
+        for axis, (was, now) in enumerate(zip(arm, self.arm_centroid())):
+            with self.subTest(axis=axis):
+                self.assertAlmostEqual(now, was, delta=1e-6)
+
+    def test_the_elbow_motor_compensates_the_shoulder(self):
+        # What the motor on the housing has to do for `art3` to mean the
+        # joint: its pulley turns by the shoulder's own swing plus the
+        # geared elbow, because the belt sees only the difference between
+        # that pulley and the arm.
+        for shoulder, elbow in ((0.0, 0.0), (25.0, 0.0), (0.0, 30.0),
+                                (25.0, 30.0), (-40.0, -60.0)):
+            self.pose(art2=shoulder, art3=elbow)
+            with self.subTest(art2=shoulder, art3=elbow):
+                self.assertAlmostEqual(
+                    float(self.part('shoulder').drive.value),
+                    shoulder + ELBOW_RATIO * elbow, delta=1e-9)
 
     def test_turning_the_elbow_turns_the_forearm(self):
         self.pose()
@@ -313,6 +354,29 @@ class ThorTest(TestCase):
     def forearm_height(self):
         bounds = self.part(FOREARM + '.art3_body').mesh.bounds
         return float(bounds[1][2] - bounds[0][2])
+
+    def forearm_direction(self):
+        """The forearm's attitude in the machine frame, degrees about +Y.
+
+        Taken between two points fixed in the forearm — the elbow body and
+        the wrist's crown plate — so it answers where the forearm points
+        and not where the arm happened to carry it. A turn of theta about
+        the shoulder axis adds theta to it.
+        """
+        near = self.part(FOREARM + '.art3_body').mesh.vertices.mean(axis=0)
+        far = self.part(
+            WRIST + '.output.art56_gear_plate').mesh.vertices.mean(axis=0)
+        return math.degrees(math.atan2(float(far[0] - near[0]),
+                                       float(far[2] - near[2])))
+
+    def elbow_angle(self):
+        """The elbow joint's own coordinate: the forearm against the arm."""
+        return float(self.part(FOREARM).elbow.value)
+
+    def arm_centroid(self):
+        """Where the upper arm's own plate stands, in the machine frame."""
+        return [float(value) for value in
+                self.part(ARM + '.art2_body_a').mesh.vertices.mean(axis=0)]
 
     # -- the gripper --
 

@@ -10,19 +10,27 @@ driver  what it measures                                      unit
 ======  ====================================================  =======
 art1    the base's yaw about Z                                degrees
 art2    the shoulder's roll about Y, 202.0 up                 degrees
-art3    the forearm's roll in the machine frame, not          degrees
-        relative to the upper arm (see below)
+art3    the elbow's roll, relative to the upper arm            degrees
 art4    the forearm's yaw about its own axis                  degrees
 art5    the wrist's roll about Y, 556.0 up                    degrees
 art6    the tool's roll about the wrist output axis           degrees
 grip    the clear opening between the two jaws                mm
 ======  ====================================================  =======
 
-`art3` is absolute because the machine is: the belt that sets the elbow
-runs from a pulley carried by the shoulder housing, not by the upper arm,
-so swinging the shoulder leaves the forearm pointing the same way. Drive
-`art2` alone and watch the elbow: nothing about the forearm's direction
-changes, and no elbow motor turns.
+Every one of those is a joint of the machine, `art3` included: move one
+slider and one joint moves. `art3` was once read as the forearm's angle in
+the MACHINE frame, on the argument that the elbow's drive pulley is carried
+by the shoulder housing and so holds the forearm's direction while the
+shoulder swings. That is true only for equal pulleys. Thor's drive pulley
+has twenty teeth and its elbow pulley a hundred and seventeen, so with the
+motor still a shoulder swing of theta turns the forearm against the arm by
+only -20 theta / 117; the earlier reading was wrong, and this one is the
+joint.
+
+The coupling is real, and it lives where it belongs: the elbow's motor sits
+on the shoulder housing, so `Art1` works out what that motor must turn --
+`shoulder + (117/20) * elbow` -- to deliver the elbow the maker asked for.
+That is what a controller does, and it is one line beside the motor.
 
 Everything else follows from those seven: the motors turn at their gearing,
 the belts are redrawn between their pulleys, the optical discs turn with
@@ -44,7 +52,7 @@ from simulation.gripper import OPEN
 BASE_TRAVEL = (-180.0, 180.0)
 #: The shoulder's travel, bounded by the arm meeting the base behind it.
 SHOULDER_TRAVEL = (-90.0, 90.0)
-#: The elbow's absolute travel.
+#: The elbow's own travel, relative to the upper arm.
 ELBOW_TRAVEL = (-135.0, 135.0)
 #: The forearm's yaw, wrist roll and tool roll.
 FOREARM_TRAVEL = (-180.0, 180.0)
@@ -87,13 +95,12 @@ class Thor(AssemblyNode):
     # Every driver reaches the freedom it names, wherever that freedom
     # lives: a relation walks the tree by path, so nothing between the
     # root and a joint five levels down has to carry a value it does not
-    # itself use. `art3` is the one that is not a joint, because it is
-    # not a freedom of one body: it is the forearm's angle in the machine
-    # frame, and the shoulder housing works out the elbow from it.
+    # itself use. Each of the seven is one joint, and the shoulder-to-
+    # elbow coupling is the motor's problem, stated on `Art1`.
     art1.drives(base.yaw)
     art1.drives(shoulder.yaw)
     art2.drives(shoulder.art2.shoulder)
-    art3.drives(shoulder.elbow_absolute)
+    art3.drives(shoulder.art2.art3.elbow)
     art4.drives(shoulder.art2.art3.art4.yaw)
     art5.drives(shoulder.art2.art3.art4.art56.wrist)
     art6.drives(shoulder.art2.art3.art4.art56.output.tool)
@@ -105,23 +112,28 @@ class Thor(AssemblyNode):
              'art5': 0.0, 'art6': 0.0, 'grip': OPEN},
             duration=4.0),
         'Ready': Instruction(
-            {'art1': 0.0, 'art2': 35.0, 'art3': -55.0, 'art4': 0.0,
+            {'art1': 0.0, 'art2': 35.0, 'art3': -90.0, 'art4': 0.0,
              'art5': 20.0, 'art6': 0.0, 'grip': OPEN},
             duration=3.0),
         'Reach': Instruction(
-            {'art1': 0.0, 'art2': 60.0, 'art3': -20.0, 'art4': 0.0,
+            {'art1': 0.0, 'art2': 60.0, 'art3': -80.0, 'art4': 0.0,
              'art5': -40.0, 'art6': 0.0, 'grip': OPEN},
             duration=3.0),
         'Pick': Instruction(
-            {'art1': 0.0, 'art2': 60.0, 'art3': -20.0, 'art4': 0.0,
+            {'art1': 0.0, 'art2': 60.0, 'art3': -80.0, 'art4': 0.0,
              'art5': -40.0, 'art6': 0.0, 'grip': 12.0},
             duration=2.0),
         'Place': Instruction(
-            {'art1': 90.0, 'art2': 60.0, 'art3': -20.0, 'art4': 0.0,
+            {'art1': 90.0, 'art2': 60.0, 'art3': -80.0, 'art4': 0.0,
              'art5': -40.0, 'art6': 90.0, 'grip': OPEN},
             duration=5.0),
         # Folded to the elbow's own limit, not past it: -160 was outside
-        # ELBOW_TRAVEL, which is the sort of thing a range is for.
+        # ELBOW_TRAVEL, which is the sort of thing a range is for. Now
+        # that `art3` is the elbow's own angle this is the elbow folded
+        # hard against the upper arm, whatever the shoulder is doing --
+        # the one pose of the demo the correction moves, because -135 in
+        # the machine frame with the shoulder at 80 asked the elbow for
+        # -215 and the joint does not go there.
         'Park': Instruction(
             {'art1': 0.0, 'art2': 80.0, 'art3': -135.0, 'art4': 0.0,
              'art5': 80.0, 'art6': 0.0, 'grip': 0.0},

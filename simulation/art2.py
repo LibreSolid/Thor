@@ -7,12 +7,15 @@ elbow end carries the bearings the forearm turns on.
 
 The elbow's belt runs the length of this fork, from a pulley on the
 shoulder axis to the pulley on the elbow axis, clear of the two sprung
-tensioners the arm carries for it. The
-driving pulley is carried by `Art1`, not by this arm, so the belt holds the
-elbow at a fixed angle in the machine frame while the shoulder swings. The
-elbow joint on `Art3` therefore measures the forearm's angle **relative to
-this arm**; the machine-frame angle the maker drives is that plus this
-arm's own swing, a sum `Art1` states and the solver reads backwards.
+tensioners the arm carries for it. The driving pulley is carried by `Art1`,
+not by this arm, so what the belt sees at that end is the drive pulley's
+turn **relative to this arm** — and at twenty teeth against the elbow
+pulley's hundred and seventeen it carries only 20/117 of it across. A
+shoulder swing with the motor still therefore does not hold the forearm's
+direction in the machine frame; the model once said it did, and it was
+wrong. The elbow joint on `Art3` is the forearm's angle relative to this
+arm, the maker drives that joint, and the housing's own motor makes up the
+shoulder term.
 """
 
 import math
@@ -166,10 +169,11 @@ class Art2(AssemblyNode):
     nuts = fasteners.declare_nuts(GROUP)
 
     # The belt does not slip: what it feeds past a point is the arc the
-    # pulley it wraps has turned through. The elbow pulley is the one
-    # fixed in this frame -- the drive pulley belongs to Art1 and swings
-    # with the shoulder -- so the arc is the elbow's own movement
-    # relative to this arm, which is exactly what its joint measures.
+    # pulley it wraps has turned through, and the arc is measured in the
+    # frame the belt is drawn in, which is this arm's. The elbow pulley's
+    # turn here is the elbow joint's own coordinate, so the belt reads it
+    # directly; the drive pulley's turn here is `Art1`'s `drive` less the
+    # shoulder, which is the same arc at the other end of the 20:117 pair.
     art3.elbow.drives(elbow_belt.travel, ratio=belt_travel(1.0))
 
     def render(self):
