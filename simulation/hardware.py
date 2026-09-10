@@ -15,6 +15,7 @@ argued about on solids.
 import cadquery as cq
 
 from solid_node.node import AssemblyNode, CadQueryNode
+from solid_node.motion.joints import Revolute
 from solid_node.motion.ports import RotationalPort
 from solid_node.parameters import Count, Length, Ratio
 
@@ -284,6 +285,12 @@ class PulleyGT2(CadQueryNode):
     hub_diameter = Length(18.0, min=0)
     hub_length = Length(4.6, min=0)
     bore = Length(5.0, min=0)
+
+    #: Every mounting the catalogue places this pulley at turns it about
+    #: its own bore, whichever way the design faces it: own frame, no
+    #: anchor, needs no per-instance axis — only the `.drives()` ratio
+    #: sign differs between mountings.
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
     #: GT2 pitch, mm.
     tooth_pitch = 2.0
@@ -679,6 +686,11 @@ class BearingBalls(AssemblyNode):
     count = Count(36, min=1)
     pitch_radius = Length(35.0, min=0)
     diameter = Length(6.0, min=0)
+
+    #: The whole cage turns as one rigid body about the race's own axis,
+    #: own frame, no anchor, on top of the static array `render()` lays
+    #: out below.
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
     balls = BearingBall(diameter=diameter).repeat(count)
 

@@ -188,13 +188,16 @@ each motor and each belt is one line beside the pair it belongs to.
 
 #### What still turns by hand
 
-Five `simulate()` methods survive, and each does one thing: turn the
-printed gears, pulleys, optical discs and the ball cage that spin on their
-own bearings. A joint would say this better, but a joint's axis and anchor
-are resolved when the node is constructed, and a part placed by
-`place_from_design` only learns where it stands when its parent renders —
-so a joint cannot yet be anchored at a design-placed part's own origin.
-The gripper keeps its own kinematics too: its jaws are the couplers of a
+Nothing, except the gripper. The thirteen printed gears, pulleys, optical
+discs and the ball cage that spin on their own bearings are declared
+joints too: `turn = Revolute(axis=(0, 0, 1), unit='deg')`, own frame, no
+anchor. solid-node states a class-body joint in the frame of whoever
+declares it (ADR-097), so a part that turns about its own placed origin
+needs no anchor at all and no longer has to wait for its parent to place
+it first; each is driven from the coordinate that already turned it, sign
+and all, the same way the shoulder and elbow motors already were, and
+`Base`, `Art1`, `Art3`, `Art4` and `Art56` no longer have a `simulate()`.
+The gripper keeps its own kinematics: its jaws are the couplers of a
 parallelogram and translate on a circle, which is not one lower pair.
 
 The instructions are `Home`, `Ready`, `Reach`, `Pick`, `Place` and `Park`.

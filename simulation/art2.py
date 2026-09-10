@@ -33,14 +33,6 @@ GROUP = 'AssemblyArt2'
 #: Teeth on the internal ring cut into the shoulder plate.
 SHOULDER_RING_TEETH = 60
 
-#: The shoulder axis in the housing's frame, and where this arm's own
-#: frame sits on it. Stated here because this is the body that swings:
-#: the housing reads them back to place the arm at rest.
-SHOULDER_AXIS = (0.0, 1.0, 0.0)
-ARM_ORIGIN = (0.0, -68.0, 123.0)
-ARM_TURN = 180.0
-ARM_TURN_AXIS = (0.0, 0.7071067811865476, 0.7071067811865476)
-
 #: The elbow axis in this frame.
 ELBOW_AXIS = (0.0, 0.0, 1.0)
 
@@ -116,8 +108,13 @@ def belt_travel(turn):
 class Art2(AssemblyNode):
     """The upper arm and the forearm it carries."""
 
-    #: The arm swings about the shoulder axis, in the housing's frame.
-    shoulder = Revolute(axis=SHOULDER_AXIS, at=ARM_ORIGIN, unit='deg')
+    #: The arm swings about the shoulder axis, through its own origin,
+    #: stated in its own rest frame. `Art1.render()` turns this arm 180
+    #: degrees about (0, 1/sqrt2, 1/sqrt2) before placing it, which
+    #: carries the housing's own shoulder axis (0, 1, 0) onto this
+    #: frame's (0, 0, 1) -- a 180-degree turn is its own inverse, so the
+    #: housing's axis maps onto this one exactly.
+    shoulder = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
     art2_body_a = parts.Art2BodyA()
     art2_body_a_window = parts.Art2BodyAWindow()

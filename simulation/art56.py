@@ -105,10 +105,12 @@ class WristOutput(AssemblyNode):
 class Art56(AssemblyNode):
     """The wrist housing, its differential, and the gripper it carries."""
 
-    #: The whole housing rolls about the fork's axis, in the forearm's
-    #: frame.
-    wrist = Revolute(axis=WRIST_AXIS_IN_FOREARM,
-                     at=(0.0, 0.0, WRIST_HEIGHT), unit='deg')
+    #: The whole housing rolls about the fork's axis, through its own
+    #: origin, stated in its own rest frame. `Art4.render()` turns this
+    #: body 90 degrees about (0, 0, 1) before placing it, which carries
+    #: this frame's own wrist axis (1, 0, 0) -- `WRIST_AXIS` above -- onto
+    #: the forearm's `WRIST_AXIS_IN_FOREARM = (0, 1, 0)`.
+    wrist = Revolute(axis=WRIST_AXIS, unit='deg')
 
     art56_motor_cover_ring = parts.Art56MotorCoverRing()
     common_bearing_fix_through = parts.CommonBearingFixThrough()
@@ -128,24 +130,24 @@ class Art56(AssemblyNode):
     screws = fasteners.declare_screws(GROUP)
     nuts = fasteners.declare_nuts(GROUP)
 
+    # Each pinion, and the belt pulley sharing its shaft, spins about the
+    # wrist axis at `CROWN_RATIO * tool`. The two pinions face each
+    # other, so one turns one way about that axis and the other the
+    # opposite way in the machine frame -- but each is a printed part
+    # reading its own +Z, and `_sign` folds that mounting into the ratio,
+    # so both pinions and both pulleys read the same `output.tool`.
+    output.tool.drives(art56_small_gear_1.turn,
+                       ratio=CROWN_RATIO
+                       * _sign('Art56SmallGear_Art56SmallGear'))
+    output.tool.drives(art56_small_gear_2.turn,
+                       ratio=-CROWN_RATIO
+                       * _sign('Art56SmallGear_Art56SmallGear001'))
+    output.tool.drives(gt2x40_pulley_1.turn,
+                       ratio=CROWN_RATIO * _sign('GT2x40PulleyM005'))
+    output.tool.drives(gt2x40_pulley_2.turn,
+                       ratio=-CROWN_RATIO * _sign('GT2x40PulleyM006'))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, HOUSING_PLACEMENT,
                                   phases=PHASES)
-
-    def simulate(self):
-        # Each pinion, and the belt pulley sharing its shaft, spins about
-        # the wrist axis. The two pinions face each other, so one turns
-        # one way about that axis and the other the opposite way; the
-        # pulleys follow the pinions they share a shaft with. All four
-        # are parts the design places, turning on their own bearings; see
-        # README, "What still turns by hand".
-        spin = CROWN_RATIO * placing.bound(self.output.tool)
-        for label, attribute, about_axis in (
-                ('Art56SmallGear_Art56SmallGear', 'art56_small_gear_1', spin),
-                ('Art56SmallGear_Art56SmallGear001', 'art56_small_gear_2',
-                 -spin),
-                ('GT2x40PulleyM005', 'gt2x40_pulley_1', spin),
-                ('GT2x40PulleyM006', 'gt2x40_pulley_2', -spin)):
-            getattr(self, attribute).rotate(_sign(label) * about_axis,
-                                            [0.0, 0.0, 1.0])

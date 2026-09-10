@@ -113,15 +113,10 @@ class Base(AssemblyNode):
     #: times as the ring has teeth over its own. The motor's own shaft is
     #: the pinion's, so it reads the same turn through its port.
     yaw.drives(stepper_nema17x40.spin, ratio=BASE_RATIO * MOTOR_SIGN)
+    # The pinion is a printed part turning on its own bearing at the same
+    # ratio; its own +Z runs the other way from the motor's.
+    yaw.drives(art1_gear_motor.turn, ratio=BASE_RATIO * PINION_SIGN)
 
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT, phases=PHASES)
-
-    def simulate(self):
-        # The pinion is a printed part placed by the design, so nothing
-        # declares where its axis is; see README, "What still turns by
-        # hand".
-        self.art1_gear_motor.rotate(
-            PINION_SIGN * BASE_RATIO * placing.bound(self.yaw),
-            [0.0, 0.0, 1.0])

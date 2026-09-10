@@ -24,11 +24,13 @@ GROUP = 'AssemblyArt3'
 
 #: Where the elbow axis runs in the upper arm's frame: the design puts the
 #: two plates' elbow bearings 160.0 from the shoulder along the arm and
-#: 68.0 out of the plate's own plane. The forearm's own origin sits a
-#: further 81.5 along the arm, which is why turning it about its own
-#: origin would be wrong and the joint states the line instead.
+#: 68.0 out of the plate's own plane.
 ELBOW_ALONG_ARM = 160.0
 ELBOW_ACROSS_ARM = 68.0
+#: The forearm's own origin sits a further 81.5 along the arm, across the
+#: quarter turn `Art2.render()` puts it through -- which is why the elbow
+#: joint states this offset in the forearm's OWN frame, along its own Z,
+#: rather than at its placed origin.
 ELBOW_ACROSS_FOREARM = 81.5
 
 #: Teeth on the transmission column's gear and on the pinion that drives it.
@@ -84,12 +86,21 @@ def _sign(label):
 class Art3(AssemblyNode):
     """The elbow's output link and the forearm it turns."""
 
-    #: The elbow, stated in the upper arm's frame: this node's angle
-    #: RELATIVE to that arm. The machine-frame angle the maker drives is
-    #: the shoulder's swing plus this one; `simulation.art1` states that
-    #: sum and lets the solver work backwards to here.
-    elbow = Revolute(axis=(0.0, 0.0, 1.0),
-                     at=(0.0, ELBOW_ALONG_ARM, ELBOW_ACROSS_ARM),
+    #: The elbow, stated in the forearm's OWN rest frame: this node's
+    #: angle RELATIVE to the upper arm. `Art2.render()` turns this body
+    #: 90 degrees about the arm's own X before translating it, so the
+    #: arm's elbow axis (0, 0, 1) is this frame's (0, 1, 0), and the
+    #: arm's anchor (0, ELBOW_ALONG_ARM, ELBOW_ACROSS_ARM) less the
+    #: translation (0, ELBOW_ALONG_ARM + ELBOW_ACROSS_FOREARM,
+    #: ELBOW_ACROSS_ARM), turned back through that same 90 degrees, is
+    #: (0, 0, ELBOW_ACROSS_FOREARM) -- the forearm's own origin sits that
+    #: far short of the elbow line along its own Y, which is why turning
+    #: it about its own origin would be wrong. The machine-frame angle
+    #: the maker drives is the shoulder's swing plus this one;
+    #: `simulation.art1` states that sum and lets the solver work
+    #: backwards to here.
+    elbow = Revolute(axis=(0.0, 1.0, 0.0),
+                     at=(0.0, 0.0, ELBOW_ACROSS_FOREARM),
                      unit='deg')
 
     art3_body = parts.Art3Body()
@@ -119,6 +130,16 @@ class Art3(AssemblyNode):
     art4.yaw.drives(yaw_motor.spin,
                     ratio=-COLUMN_RATIO * _sign('Stepper_Nema17x34001'))
 
+    # The transmission column's motor pinion is a printed part turning on
+    # its own shaft, at the same ratio as the motor above.
+    art4.yaw.drives(art4_motor_gear.turn,
+                    ratio=-COLUMN_RATIO
+                    * _sign('Art4MotorGear_Art4MotorGear'))
+    # A ball cage between a turning race and a still one runs at half the
+    # turning race's speed.
+    art4.yaw.drives(bearing_balls.turn,
+                    ratio=0.5 * _sign('BearingBalls001'))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT, phases=PHASES)
@@ -126,15 +147,3 @@ class Art3(AssemblyNode):
         # end for end: its own +Z is this frame's -Z.
         self.art4.rotate(FOREARM_TURN, list(FOREARM_TURN_AXIS))
         self.art4.translate(list(FOREARM_ORIGIN))
-
-    def simulate(self):
-        # Two parts the design places, turning on their own bearings; see
-        # README, "What still turns by hand".
-        yaw = placing.bound(self.art4.yaw)
-        self.art4_motor_gear.rotate(
-            _sign('Art4MotorGear_Art4MotorGear') * -COLUMN_RATIO * yaw,
-            [0.0, 0.0, 1.0])
-        # A ball cage between a turning race and a still one runs at half
-        # the turning race's speed.
-        self.bearing_balls.rotate(
-            _sign('BearingBalls001') * yaw / 2.0, [0.0, 0.0, 1.0])

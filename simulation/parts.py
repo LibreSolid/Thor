@@ -12,6 +12,7 @@ default grey.
 
 import os
 
+from solid_node.motion.joints import Revolute
 from solid_node.node import StepNode
 
 from simulation import materials
@@ -75,7 +76,13 @@ class Art1FanHolder(ThorPart):
 
 
 class Art1GearMotor(ThorPart):
-    """`step/Art1GearMotor.step`."""
+    """`step/Art1GearMotor.step`: the base pinion, turning on its own shaft.
+
+    Own frame, no anchor: the pinion's own origin is its own bearing,
+    wherever the design's own placement puts it.
+    """
+
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
 
 class Art1Top(ThorPart):
@@ -83,7 +90,13 @@ class Art1Top(ThorPart):
 
 
 class Art23Optodisk(ThorPart):
-    """`step/Art23Optodisk.step`."""
+    """`step/Art23Optodisk.step`: the elbow drive's optical disc.
+
+    Own frame, no anchor: it turns on the shoulder axis, where the design
+    places it.
+    """
+
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
 
 class Art2BodyA(ThorPart):
@@ -121,7 +134,13 @@ class Art2MotorGear(ThorPart):
     it measures -8435.0 mm3. The geometry is right and it booleans
     correctly, so the model keeps it as published and records the defect;
     reversing it makes the volume positive and every boolean wrong.
+
+    One class, two shoulder pinions mounted facing opposite ways: own
+    frame, no anchor, needs no per-instance axis at all — only the
+    `.drives()` ratio sign differs between them.
     """
+
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
     def adjust(self, shape):
         return _inside_out(shape)
@@ -179,7 +198,13 @@ class Art4MotorFix(ThorPart):
 
 
 class Art4MotorGear(ThorPart):
-    """`step/Art4MotorGear.step`."""
+    """`step/Art4MotorGear.step`: the forearm's yaw motor pinion.
+
+    Own frame, no anchor: it turns on its own shaft, at the foot of the
+    transmission column.
+    """
+
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
 
 class Art4Optodisk(ThorPart):
@@ -207,7 +232,14 @@ class Art56MotorHolderB(ThorPart):
 
 
 class Art56SmallGear(ThorPart):
-    """`step/Art56SmallGear.step`."""
+    """`step/Art56SmallGear.step`: one of the wrist's two bevel pinions.
+
+    One class, two pinions facing each other on the wrist axis: own
+    frame, no anchor, needs no per-instance axis — only the `.drives()`
+    ratio sign differs between them.
+    """
+
+    turn = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
 
 class BaseBearingFix(ThorPart):

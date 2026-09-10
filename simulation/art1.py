@@ -54,10 +54,9 @@ ARM_ORIGIN = (0.0, -68.0, 123.0)
 ARM_TURN = 180.0
 ARM_TURN_AXIS = (0.0, 0.7071067811865476, 0.7071067811865476)
 
-#: The base's yaw axis, and where this housing stands on it, both in the
-#: machine frame the root places this node in.
+#: The base's yaw axis, in this housing's own frame -- the root places
+#: this node with no rotation, so it is also the machine frame's.
 YAW_AXIS = (0.0, 0.0, 1.0)
-YAW_ANCHOR = tuple(layout.link('root', 'AssemblyArt1').translate)
 
 PLACEMENT = {
     'Art1Bot_Art1Bot': 'art1_bot',
@@ -87,11 +86,6 @@ PHASES = {
     if label in PLACEMENT
 }
 
-#: Which motor turns with which pinion.
-SHOULDER_DRIVE = (('Art2MotorGear_Art2MotorGear', 'Nema17_GearBox002'),
-                  ('Art2MotorGear_Art2MotorGear001', 'Nema17_GearBox001'))
-
-
 def _sign(label):
     """Which way a placed part's own +Z runs against the shoulder axis."""
     return placing.axis_sign(layout.link(GROUP, label), SHOULDER_AXIS)
@@ -100,8 +94,10 @@ def _sign(label):
 class Art1(AssemblyNode):
     """The shoulder housing and the arm above it."""
 
-    #: The whole housing yaws with the base, about the machine's own Z.
-    yaw = Revolute(axis=YAW_AXIS, at=YAW_ANCHOR, unit='deg')
+    #: The whole housing yaws about its own Z, through its own origin --
+    #: the root places it with no rotation, so this is also the base's
+    #: own yaw axis.
+    yaw = Revolute(axis=YAW_AXIS, unit='deg')
 
     art1_bot = parts.Art1Bot()
     art1_top = parts.Art1Top()
@@ -151,30 +147,25 @@ class Art1(AssemblyNode):
     # The motor is on the drive pulley's own shaft, so it turns with it.
     drive.drives(elbow_motor.spin, ratio=_sign('Nema17_GearBox003'))
 
+    # The two shoulder pinions are printed parts turning on their own
+    # bearings inside the ring, at the same ratio as the motors above.
+    art2.shoulder.drives(shoulder_pinion_1.turn,
+                         ratio=SHOULDER_RATIO
+                         * _sign('Art2MotorGear_Art2MotorGear'))
+    art2.shoulder.drives(shoulder_pinion_2.turn,
+                         ratio=SHOULDER_RATIO
+                         * _sign('Art2MotorGear_Art2MotorGear001'))
+
+    # The elbow drive pulley and its optical disc are printed parts
+    # turning on the shoulder axis, carried by this housing; `drive` is
+    # the same sum the elbow motor above turns with.
+    drive.drives(elbow_drive_pulley.turn,
+                ratio=_sign('Pulley_GT2x20_Modified001'))
+    drive.drives(art23_optodisk.turn,
+                ratio=_sign('Art23Optodisk_Art23Optodisk'))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT, phases=PHASES)
         self.art2.rotate(ARM_TURN, list(ARM_TURN_AXIS))
         self.art2.translate(list(ARM_ORIGIN))
-
-    def simulate(self):
-        # What is left by hand: four parts the design places, turning on
-        # their own bearings, which a joint cannot yet be declared for.
-        # See README, "What still turns by hand".
-        shoulder = placing.bound(self.art2.shoulder)
-        # Not `self.drive`: a node's own derived coordinate is solved
-        # after its simulate() has run, so reading it here yields the
-        # unbound slot and turns nothing (the framework's warts log,
-        # 2026-09-09). The two joints it is made of were bound by the
-        # root's relations before this phase, so the same sum is taken
-        # from them; `drive` above stays the motor's relation and the
-        # contract the tests read.
-        drive = shoulder + ELBOW_RATIO * placing.bound(self.art2.art3.elbow)
-        for pinion_label, _motor_label in SHOULDER_DRIVE:
-            getattr(self, PLACEMENT[pinion_label]).rotate(
-                _sign(pinion_label) * SHOULDER_RATIO * shoulder,
-                [0.0, 0.0, 1.0])
-        self.elbow_drive_pulley.rotate(
-            _sign('Pulley_GT2x20_Modified001') * drive, [0.0, 0.0, 1.0])
-        self.art23_optodisk.rotate(
-            _sign('Art23Optodisk_Art23Optodisk') * drive, [0.0, 0.0, 1.0])

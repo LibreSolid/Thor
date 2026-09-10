@@ -99,15 +99,6 @@ PLACEMENT = {
     'M8Connector001': 'm8_connector',
 }
 
-#: Which motor drives which wrist pulley, read off the assembly: motor 2
-#: sits on the -y side and its pulley shares the belt band with the wrist
-#: pulley the design calls M005; motor 1 is the +y pair.
-MOTOR_DRIVES = {
-    'Pulley_GT2x20001': ('motor_pulley_1', 'Stepper_Nema17x34002'),
-    'Pulley_GT2x20002': ('motor_pulley_2', 'Stepper_Nema17x34001'),
-}
-
-
 def belt_travel(turn):
     """How far a wrist belt runs for a turn of its wrist pulley, mm.
 
@@ -130,8 +121,11 @@ class Art4(AssemblyNode):
     """The forearm and the wrist it carries."""
 
     #: The forearm turns on the slewing race at the foot of its column,
-    #: about the link's own axis.
-    yaw = Revolute(axis=YAW_AXIS_IN_LINK, at=FOREARM_ORIGIN, unit='deg')
+    #: through its own origin, about its own axis. `Art3.render()` turns
+    #: this body 180 degrees about (0, 1, 0) before placing it, and a
+    #: 180-degree turn is its own inverse, so Art3's own yaw axis
+    #: `YAW_AXIS_IN_LINK = (0, 0, -1)` maps onto this frame's (0, 0, 1).
+    yaw = Revolute(axis=(0.0, 0.0, 1.0), unit='deg')
 
     art4_transmission_column = parts.Art4TransmissionColumn()
     art4_body_bot = parts.Art4BodyBot()
@@ -189,6 +183,15 @@ class Art4(AssemblyNode):
     left.drives(wrist_belt_1.travel, ratio=belt_travel(1.0))
     right.drives(wrist_belt_2.travel, ratio=belt_travel(1.0))
 
+    # Each motor pulley is a printed part on its motor's own shaft, so it
+    # turns with it: motor 2 (driven by `left`) carries `motor_pulley_1`,
+    # sharing the belt band with the wrist pulley the design calls M005;
+    # motor 1 (driven by `right`) carries `motor_pulley_2`.
+    left.drives(motor_pulley_1.turn,
+                ratio=BELT_RATIO * _sign('Pulley_GT2x20001'))
+    right.drives(motor_pulley_2.turn,
+                 ratio=BELT_RATIO * _sign('Pulley_GT2x20002'))
+
     def render(self):
         fasteners.place_all(self, GROUP)
         placing.place_from_design(self, GROUP, PLACEMENT)
@@ -203,17 +206,3 @@ class Art4(AssemblyNode):
             if turn:
                 belt.rotate(turn, [0.0, 0.0, 1.0])
             belt.translate(list(offset))
-
-    def simulate(self):
-        # Two motor pulleys the design places, turning on their own
-        # shafts; see README, "What still turns by hand". `left` and
-        # `right` are this node's own derived coordinates and are solved
-        # after simulate(), so the sum is redone here from the two joints
-        # the root has already bound.
-        wrist = placing.bound(self.art56.wrist)
-        spin = CROWN_RATIO * placing.bound(self.art56.output.tool)
-        for label, turn in (('Pulley_GT2x20001', wrist + spin),
-                            ('Pulley_GT2x20002', wrist - spin)):
-            pulley_attribute, _motor_label = MOTOR_DRIVES[label]
-            getattr(self, pulley_attribute).rotate(
-                _sign(label) * BELT_RATIO * turn, [0.0, 0.0, 1.0])
